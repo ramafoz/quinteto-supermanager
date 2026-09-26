@@ -1,0 +1,1 @@
+ALTER TABLE `snapshots` ADD `declared_at` integer;
