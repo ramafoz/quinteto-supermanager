@@ -10,15 +10,28 @@ const owner={userId:'owner'},friend={userId:'friend'},key='a1'.repeat(32);
 const acb=[...seed.map(p=>p.acb),...Array.from({length:100},(_,i)=>({ref:String(1000+i),name:`Test ${i}`,shortName:`Test ${i}`,club:'BRE',position:'B'}))];
 const rincon=[...seed.map(p=>p.rincon),...acb.slice(seed.length).map((p,i)=>({...p,ref:`test-${i}`}))];
 const html=players=>`<title>Broker 2026/27</title>${players.map(p=>`<tr><td><span class="pos-badge">${p.position||'B'}</span><img alt="${p.club}"><a href="/smgr/jugador/${p.ref}"><span class="pname-full">${p.name}</span><span class="pname-abbr">${p.shortName}</span></a></td></tr>`).join('')}`;
+test('unmatched league player can be manually linked to a full-source option without adding unrelated ACB rows',async()=>{
+ const {db,env}=await setup();try{
+ db.prepare('UPDATE snapshots SET players_json=?').run(JSON.stringify([{id:'57',name:'W. Tavares',club:'RMA',position:'Pívot'}]));
+ const a={ref:'57',name:'W. Tavares',shortName:'W. Tavares',club:'RMA',position:'P'};
+ const r={ref:'edy-tavares',name:'Edy Tavares',shortName:'E. Tavares',club:'RMA',position:'P'};
+ let v=await catalogAction(env,owner,'catalog-refresh',{revision:0},fixture([...acb,a],[...rincon,r]));
+ assert.equal(v.rows.length,1);assert.equal(v.rows[0].status,'pending');assert.ok(v.rincon.some(p=>p.ref===r.ref));
+ v=await catalogAction(env,owner,'catalog-confirm',{revision:1,selections:[{acbId:'57',rinconRef:r.ref}]});
+ assert.equal(v.rows.length,1);assert.equal(v.rows[0].confirmed.rincon.ref,r.ref);
+ v=await catalogAction(env,owner,'catalog-read',{});assert.equal(v.rows[0].status,'confirmed');
+ const saved=db.prepare('SELECT * FROM league_catalogs').get();assert.equal(JSON.parse(saved.confirmed_json).length,1);assert.equal(JSON.parse(saved.document_json).acb.length,1);
+ }finally{db.close();}
+});
 test('league scope covers saved, initial and historical rosters; old broad catalogs are filtered and unrelated confirmations denied',async()=>{
  const {db,env}=await setup();try{
  await catalogAction(env,owner,'catalog-refresh',{revision:0},fixture());
  const player=p=>({id:p.ref,name:p.name,club:p.club,position:'Base'});
  db.prepare('UPDATE snapshots SET players_json=?,baseline_json=?,history_json=?').run(JSON.stringify([player(acb[0])]),JSON.stringify([player(acb[1])]),JSON.stringify([{incoming:[player(acb[2])],outgoing:[player(acb[3])]}]));
- let v=await catalogAction(env,owner,'catalog-read',{});assert.equal(v.rows.length,4);assert.equal(v.rincon.length,4);
+ let v=await catalogAction(env,owner,'catalog-read',{});assert.equal(v.rows.length,4);assert.equal(v.rincon.length,rincon.length);
  await assert.rejects(catalogAction(env,owner,'catalog-confirm',{revision:1,selections:[{acbId:'1000',rinconRef:'test-0'}]}),/xa non está/);
  v=await catalogAction(env,owner,'catalog-refresh',{revision:1},fixture());assert.equal(v.rows.length,4);
- const doc=JSON.parse(db.prepare('SELECT document_json FROM league_catalogs').get().document_json);assert.equal(doc.acb.length,4);assert.equal(doc.rincon.length,4);
+ const doc=JSON.parse(db.prepare('SELECT document_json FROM league_catalogs').get().document_json);assert.equal(doc.acb.length,4);assert.equal(doc.rincon.length,rincon.length);
  db.prepare('UPDATE snapshots SET players_json=?').run(JSON.stringify([player(acb[0]),player(acb[31])]));
  v=await catalogAction(env,owner,'catalog-read',{});assert.equal(v.rows.length,5);assert.equal(v.rows.find(r=>r.acb.ref==='1000').status,'missing');
  v=await catalogAction(env,owner,'catalog-refresh',{revision:2},fixture());assert.equal(v.rows.find(r=>r.acb.ref==='1000').status,'new');

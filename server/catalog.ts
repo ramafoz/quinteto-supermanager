@@ -5,7 +5,7 @@ import {decrypt} from './crypto.ts';
 import {audit} from './audit.ts';
 import {approvedCatalogPairs} from './catalog-seed.ts';
 import {readCatalogSources} from './catalog-sources.ts';
-import {CATALOG_SEASON,catalogRows,candidatesFor,clubCode,normalizeName,type CatalogPair,type CatalogDocument,type CatalogEntry,type CatalogPlayer,type CatalogView} from '../lib/catalog.ts';
+import {CATALOG_SEASON,catalogRows,clubCode,normalizeName,type CatalogPair,type CatalogDocument,type CatalogEntry,type CatalogPlayer,type CatalogView} from '../lib/catalog.ts';
 type Saved={revision:number;checked_at:number|null;document_json:string;confirmed_json:string;history_json:string};
 const initial=():Saved=>({revision:0,checked_at:null,document_json:JSON.stringify({acb:approvedCatalogPairs.map(p=>({player:p.acb,present:true,lastSeenAt:p.confirmedAt})),rincon:approvedCatalogPairs.map(p=>({player:p.rincon,present:true,lastSeenAt:p.confirmedAt}))}),confirmed_json:JSON.stringify(approvedCatalogPairs),history_json:'[]'});
 // Scope by saved league rosters, including initial rosters and substitution history.
@@ -21,9 +21,8 @@ function scoped(saved:Saved,used:Map<string,CatalogPlayer>):Saved{
  const pairs=(JSON.parse(saved.confirmed_json) as CatalogPair[]).filter(p=>used.has(p.acb.ref));
  const acb=document.acb.filter(e=>used.has(e.player.ref));
  for(const p of used.values())if(!acb.some(e=>e.player.ref===p.ref))acb.push({player:p,present:false,lastSeenAt:0});
- const refs=new Set(pairs.map(p=>p.rincon.ref));
- for(const e of acb)for(const p of candidatesFor(e.player,document.rincon.map(r=>r.player)))refs.add(p.ref);
- return {...saved,document_json:JSON.stringify({acb,rincon:document.rincon.filter(e=>refs.has(e.player.ref))}),confirmed_json:JSON.stringify(pairs),history_json:JSON.stringify(JSON.parse(saved.history_json).filter((h:{acbId:string})=>used.has(h.acbId)))};
+ // Keep public source options for manual matching; only league ACB players become rows or confirmed pairs.
+ return {...saved,document_json:JSON.stringify({acb,rincon:document.rincon}),confirmed_json:JSON.stringify(pairs),history_json:JSON.stringify(JSON.parse(saved.history_json).filter((h:{acbId:string})=>used.has(h.acbId)))};
 }
 function view(saved:Saved):CatalogView{
  const document=JSON.parse(saved.document_json) as CatalogDocument;const pairs=JSON.parse(saved.confirmed_json) as CatalogPair[];

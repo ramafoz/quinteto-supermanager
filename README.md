@@ -2,7 +2,7 @@
 
 Código da miniweb dunha liga privada SuperManager ACB. Esta copia permite revisar as regras, o acceso aos datos e as probas.
 
-Exportación da versión publicada do 27-09-2026, commit de orixe 306b034efc412812e66181fa75c3504f9d659be0. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
+Exportación da versión publicada do 27-09-2026, commit de orixe d30eba0c1ab8cd24960d6c5bb2b8597f34eeae67. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
 
 Puntos para revisar:
 - server/service.ts: autorización, declaración inicial e penalizacións.
