@@ -5,9 +5,26 @@ import {decrypt} from './crypto.ts';
 import {audit} from './audit.ts';
 import {approvedCatalogPairs} from './catalog-seed.ts';
 import {readCatalogSources} from './catalog-sources.ts';
-import {CATALOG_SEASON,catalogRows,normalizeName,type CatalogPair,type CatalogDocument,type CatalogEntry,type CatalogPlayer,type CatalogView} from '../lib/catalog.ts';
+import {CATALOG_SEASON,catalogRows,candidatesFor,clubCode,normalizeName,type CatalogPair,type CatalogDocument,type CatalogEntry,type CatalogPlayer,type CatalogView} from '../lib/catalog.ts';
 type Saved={revision:number;checked_at:number|null;document_json:string;confirmed_json:string;history_json:string};
 const initial=():Saved=>({revision:0,checked_at:null,document_json:JSON.stringify({acb:approvedCatalogPairs.map(p=>({player:p.acb,present:true,lastSeenAt:p.confirmedAt})),rincon:approvedCatalogPairs.map(p=>({player:p.rincon,present:true,lastSeenAt:p.confirmedAt}))}),confirmed_json:JSON.stringify(approvedCatalogPairs),history_json:'[]'});
+// Scope by saved league rosters, including initial rosters and substitution history.
+async function leaguePlayers(env:Runtime,leagueId:string){
+ const result=await env.DB.prepare('SELECT s.players_json,s.baseline_json,s.history_json FROM snapshots s JOIN rounds r ON r.id=s.round_id WHERE r.league_id=? ORDER BY s.imported_at').bind(leagueId).all<{players_json:string;baseline_json:string|null;history_json:string}>();
+ const players=new Map<string,CatalogPlayer>();
+ const add=(list:{id:string;name:string;club?:string;position?:string}[])=>{for(const p of list)players.set(String(p.id),{ref:String(p.id),name:p.name,shortName:p.name,club:clubCode(p.club??''),position:({Base:'B',Alero:'A','Pívot':'P'}[p.position??'']??'')});};
+ for(const row of result.results){for(const h of JSON.parse(row.history_json)) {add(h.outgoing??[]);add(h.incoming??[]);}add(JSON.parse(row.baseline_json??'[]'));add(JSON.parse(row.players_json));}
+ return players;
+}
+function scoped(saved:Saved,used:Map<string,CatalogPlayer>):Saved{
+ const document=JSON.parse(saved.document_json) as CatalogDocument;
+ const pairs=(JSON.parse(saved.confirmed_json) as CatalogPair[]).filter(p=>used.has(p.acb.ref));
+ const acb=document.acb.filter(e=>used.has(e.player.ref));
+ for(const p of used.values())if(!acb.some(e=>e.player.ref===p.ref))acb.push({player:p,present:false,lastSeenAt:0});
+ const refs=new Set(pairs.map(p=>p.rincon.ref));
+ for(const e of acb)for(const p of candidatesFor(e.player,document.rincon.map(r=>r.player)))refs.add(p.ref);
+ return {...saved,document_json:JSON.stringify({acb,rincon:document.rincon.filter(e=>refs.has(e.player.ref))}),confirmed_json:JSON.stringify(pairs),history_json:JSON.stringify(JSON.parse(saved.history_json).filter((h:{acbId:string})=>used.has(h.acbId)))};
+}
 function view(saved:Saved):CatalogView{
  const document=JSON.parse(saved.document_json) as CatalogDocument;const pairs=JSON.parse(saved.confirmed_json) as CatalogPair[];
  return {season:CATALOG_SEASON,revision:saved.revision,checkedAt:saved.checked_at,reviewDue:saved.checked_at===null||Date.now()-saved.checked_at>=7*86400000,rows:catalogRows(document,pairs),rincon:document.rincon.filter(e=>e.present).map(e=>e.player),acbCount:document.acb.filter(e=>e.present).length,rinconCount:document.rincon.filter(e=>e.present).length,seedOnly:saved.checked_at===null};
@@ -19,7 +36,8 @@ function merge(previous:CatalogEntry[],players:CatalogPlayer[],at:number){
 export async function catalogAction(env:Runtime,user:Identity,action:string,body:Record<string,unknown>,fetcher:Fetcher=fetch){
  const owner=await env.DB.prepare('SELECT l.id FROM leagues l JOIN members m ON m.league_id=l.id WHERE m.user_id=? AND l.owner_id=?').bind(user.userId,user.userId).first<{id:string}>();
  if(!owner)throw new AppError(403,'OWNER_ONLY','Só o administrador pode revisar o catálogo.');
- const existing=await env.DB.prepare('SELECT * FROM league_catalogs WHERE league_id=? AND season=?').bind(owner.id,CATALOG_SEASON).first<Saved>();const saved=existing??initial();
+ const used=await leaguePlayers(env,owner.id);
+ const existing=await env.DB.prepare('SELECT * FROM league_catalogs WHERE league_id=? AND season=?').bind(owner.id,CATALOG_SEASON).first<Saved>();const saved=scoped(existing??initial(),used);
  if(action==='catalog-read')return view(saved);
  ensure(Number.isInteger(body.revision)&&body.revision===saved.revision,'O catálogo cambiou noutra pestana. Preme «Ver catálogo» para recargalo.');
  const document=JSON.parse(saved.document_json) as CatalogDocument;let pairs=JSON.parse(saved.confirmed_json) as CatalogPair[];const history=JSON.parse(saved.history_json) as unknown[];
@@ -33,7 +51,7 @@ export async function catalogAction(env:Runtime,user:Identity,action:string,body
   ensure(anchors.length>=5,'Non se pode verificar que o catálogo ACB corresponda á tempada 2026/27. Conservamos os datos anteriores.');
   if(saved.checked_at!==null)for(const key of ['acb','rincon'] as const){const count=document[key].filter(e=>e.present).length;ensure(fetched[key].length>=count*0.7,'A fonte devolveu moitos menos xogadores. Conservamos o catálogo para evitar baixas por unha resposta incompleta.');}
   nextDocument={acb:merge(document.acb,fetched.acb,at),rincon:merge(document.rincon,fetched.rincon,at)};checkedAt=at;
-  message=`Catálogo consultado: ${fetched.acb.length} xogadores ACB e ${fetched.rincon.length} de Rincón. Equivalencias confirmadas conservadas.`;
+  message=`Catálogo da liga revisado: ${used.size} xogadores empregados nos cadros gardados. Equivalencias confirmadas conservadas.`;
  }else if(action==='catalog-confirm'){
   ensure(saved.checked_at!==null,'Actualiza primeiro o catálogo.');
   const selections=body.selections as {acbId:string;rinconRef:string}[];
@@ -48,7 +66,7 @@ export async function catalogAction(env:Runtime,user:Identity,action:string,body
   pairs=[...next.values()];ensure(new Set(pairs.map(p=>p.rincon.ref)).size===pairs.length,'Un xogador de Rincón xa está vinculado a outra ID ACB. Non se gardaron cambios.');
   message=`O administrador confirmou ${selections.length} equivalencias do catálogo.`;
  }else throw new AppError(400,'INVALID_INPUT','Acción de catálogo non válida.');
- const next:Saved={revision:saved.revision+1,checked_at:checkedAt,document_json:JSON.stringify(nextDocument),confirmed_json:JSON.stringify(pairs),history_json:JSON.stringify(history)};
+ const next:Saved=scoped({revision:saved.revision+1,checked_at:checkedAt,document_json:JSON.stringify(nextDocument),confirmed_json:JSON.stringify(pairs),history_json:JSON.stringify(history)},used);
  const stored=await env.DB.prepare(`INSERT INTO league_catalogs(league_id,season,revision,checked_at,document_json,confirmed_json,history_json)
  SELECT ?,?,?,?,?,?,? WHERE COALESCE((SELECT revision FROM league_catalogs WHERE league_id=? AND season=?),0)=?
  ON CONFLICT(league_id,season) DO UPDATE SET revision=excluded.revision,checked_at=excluded.checked_at,document_json=excluded.document_json,confirmed_json=excluded.confirmed_json,history_json=excluded.history_json WHERE league_catalogs.revision=? RETURNING revision`).bind(owner.id,CATALOG_SEASON,next.revision,next.checked_at,next.document_json,next.confirmed_json,next.history_json,owner.id,CATALOG_SEASON,saved.revision,saved.revision).first();

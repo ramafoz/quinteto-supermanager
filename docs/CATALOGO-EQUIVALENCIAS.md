@@ -1,3 +1,5 @@
+Corrección de alcance autorizada: só se mostran e gardan xogadores dos cadros da propia liga, incluídos equipos iniciais e historial de substitucións de todas as xornadas gardadas. As fontes poden consultarse completas para localizar correspondencias, pero os xogadores alleos á liga non se presentan como tarefas de revisión. Un catálogo completo gardado anteriormente fíltase ao lelo e queda reducido na seguinte actualización correcta. Non cambia equipos nin puntos.
+
 # Revisión do catálogo · probada e autorizada para publicación
 
 Autorizada a preparación local polo administrador tras revisar as 31 equivalencias. Publicación, migración remota e sincronización de GitHub autorizadas o 27-09-2026.
