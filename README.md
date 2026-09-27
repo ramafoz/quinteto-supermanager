@@ -2,13 +2,14 @@
 
 Código da miniweb dunha liga privada SuperManager ACB. Esta copia permite revisar as regras, o acceso aos datos e as probas.
 
-Exportación da versión publicada do 27-09-2026, commit de orixe 2ca3e91123d4c9c5e49114d4bd969a6eb9f81d58. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
+Exportación da versión publicada do 27-09-2026, commit de orixe 06d451892d93e269d2fc9428c3c6677a83d01fa9. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
 
 Puntos para revisar:
 - server/service.ts: autorización, declaración inicial e penalizacións.
 - server/scoring.ts e server/acb.ts: puntuacións ACB.
 - server/audit.ts: rexistro privado do administrador.
-- tests/: 44 probas, incluída a migración que conserva datos previos.
+- server/catalog.ts e components/catalog-review.tsx: revisión privada do catálogo.
+- tests/: 51 probas, incluída a migración que conserva datos previos.
 - docs/AXUSTES-MANUAIS.md e TODO.md: axustes manuais e fases pendentes.
 
 Para executar as probas: Node.js 24, npm ci e node --test tests/*.test.mjs. Para a configuración local e os límites da integración ACB, véxase a documentación orixinal máis abaixo. A comprobación autenticada real das novas estatísticas segue pendente.

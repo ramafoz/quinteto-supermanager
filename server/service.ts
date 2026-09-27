@@ -2,6 +2,7 @@ import { AppError,ensure } from './errors.ts';
 import { decrypt,encrypt,hash,invitation } from './crypto.ts';
 import * as acb from './acb.ts';
 import {audit,observe} from './audit.ts';
+import {catalogAction} from './catalog.ts';
 import {refreshScores} from './scoring.ts';
 import {quota} from '../lib/quota.ts';
 import type {OverallRow} from '../lib/model.ts';
@@ -109,6 +110,7 @@ export async function action(env:Runtime,user:Identity,name:string,body:Record<s
   await statement(env,'INSERT INTO members(user_id,league_id,name) VALUES (?,?,?)',user.userId,league.id,nickname).run();return {joined:true};
  }
  const m=await member(env,user.userId);
+ if(['catalog-read','catalog-refresh','catalog-confirm'].includes(name))return catalogAction(env,user,name,body,fetcher);
  if(name==='ping'){await audit(env,user.userId,'Ping: sesión activa na web.');return {ok:true};}
  if(name==='refresh-team'){
   if(typeof body.roundId==='string')return importLineup(env,user,body.roundId,fetcher,false,true);

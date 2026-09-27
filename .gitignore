@@ -47,6 +47,7 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+/revision-equivalencias/
 
 # Never publish local league data or credentials
 *.sqlite

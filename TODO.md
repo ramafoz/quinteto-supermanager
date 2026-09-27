@@ -10,7 +10,17 @@ O usuario revogou os permisos anteriores. O 27-09-2026 aprobou publicar a fase 1
 - [x] Completar probas e revisión local: 44 probas, comprobación de tipos, compilación e gardado de −4 no navegador con resultado 203 → 207.
 - [x] Aprobación explícita para publicar, aplicar a migración aditiva e actualizar GitHub: 27-09-2026.
 
-## Fase 2 — fonte Rincón e lousa (sen autorizar implementación)
+## Fase 2a — catálogo de equivalencias (probado; publicación autorizada)
+- [x] Incorporar as 31 equivalencias revisadas e aprobadas polo administrador.
+- [x] Pantalla privada de revisión, filtros, correspondencias manuais e confirmación por lotes.
+- [x] Botón «Actualizar catálogo», conservación de ausencias e control de actualizacións simultáneas.
+- [x] Migración aditiva, 51 probas, tipos, compilación e comprobación no navegador local.
+- [x] Publicación, migración remota e sincronización con GitHub autorizadas o 27-09-2026.
+- [ ] Verificar primeira consulta completa coa sesión ACB real tras publicación autorizada.
+
+Detalle: [CATALOGO-EQUIVALENCIAS.md](docs/CATALOGO-EQUIVALENCIAS.md).
+
+## Fase 2b — fonte Rincón e lousa (sen autorizar implementación)
 - [ ] Verificar lectura de puntuacións e prezos de https://www.rincondelmanager.com/ e correspondencia inequívoca con IDs ACB.
 - [ ] Distinguir puntos SuperManager de valoración sen bonus e prezos de apertura/peche por tempada e xornada.
 - [ ] Gardar datos válidos con hora e fonte; conservar o anterior ante erros ou datos ausentes.

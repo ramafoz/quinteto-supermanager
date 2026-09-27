@@ -19,6 +19,6 @@ export async function POST(request:Request){try{
  const user=await identity(runtime(),request);if(!user)return json({error:'Inicia sesión para continuar.',code:'SIGN_IN'},401);
  if(request.headers.get('Origin')!==new URL(request.url).origin)throw new AppError(403,'CSRF','Recarga a páxina e volve tentalo.');
  const payload=await body(request);const name=payload.action;
- if(typeof name!=='string'||!['create','join','connect','select-team','import','disconnect','invite','round','close-round','score','remove-member','ping','refresh-team','audit','penalty','acb-journeys','refresh-scores'].includes(name))throw new AppError(400,'INVALID_INPUT','Acción non válida.');
+ if(typeof name!=='string'||!['create','join','connect','select-team','import','disconnect','invite','round','close-round','score','remove-member','ping','refresh-team','audit','penalty','acb-journeys','refresh-scores','catalog-read','catalog-refresh','catalog-confirm'].includes(name))throw new AppError(400,'INVALID_INPUT','Acción non válida.');
  return json(await action(runtime(),user,name,payload));
  }catch(e){return failure(e);}}
