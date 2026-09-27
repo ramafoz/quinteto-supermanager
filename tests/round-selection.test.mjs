@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {selectRound} from '../lib/round-selection.ts';
+const day=86400000,now=10*day;
+const previous={id:'previous',lockAt:now-day,endsAt:now-1,closedAt:null};
+const next={id:'next',lockAt:now+day,endsAt:now+2*day,closedAt:null};
+test('next round becomes default exactly 24h before start, retaining finished round before that',()=>{assert.equal(selectRound([next,previous],now-1).id,'previous');assert.equal(selectRound([next,previous],now).id,'next');assert.equal(selectRound([next,previous],next.lockAt).id,'next');});
+test('active round wins even inside next preparation window; manual selection remains available',()=>{const active={...previous,endsAt:now+1};assert.equal(selectRound([next,active],now).id,'previous');assert.equal(selectRound([next,active],now,'next').id,'next');assert.equal(selectRound([next,previous],now,'previous').id,'previous');assert.equal(selectRound([next,previous],now,'another-league').id,'next');});
+test('manual closure permits next round; choose nearest scheduled round and handle empty schedules',()=>{assert.equal(selectRound([next,{...previous,endsAt:now+1,closedAt:now}],now).id,'next');const later={...next,id:'later',lockAt:next.lockAt+1};assert.equal(selectRound([later,next,previous],now+100).id,'next');assert.equal(selectRound([],now),undefined);assert.equal(selectRound([next],now-1),undefined);});

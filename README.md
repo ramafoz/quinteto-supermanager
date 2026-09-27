@@ -2,14 +2,14 @@
 
 Código da miniweb dunha liga privada SuperManager ACB. Esta copia permite revisar as regras, o acceso aos datos e as probas.
 
-Exportación da versión publicada do 27-09-2026, commit de orixe eedd4068608fd547274a769cda8290f6205010b9. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
+Exportación da versión publicada do 27-09-2026, commit de orixe 1bc0ee3ffa7c3f101a61f3e5a5feee67a2cdde5e. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
 
 Puntos para revisar:
 - server/service.ts: autorización, declaración inicial e penalizacións.
 - server/rincon.ts e server/rincon-scoring.ts: puntuacións SM e broker de Rincón.
 - server/audit.ts: rexistro privado do administrador.
 - server/catalog.ts e components/catalog-review.tsx: revisión privada do catálogo.
-- tests/: 66 probas, incluída a migración que conserva datos previos.
+- tests/: 69 probas, incluída a migración que conserva datos previos.
 - docs/AXUSTES-MANUAIS.md e TODO.md: axustes manuais e fases pendentes.
 
 Para executar as probas: Node.js 24, npm ci e node --test tests/*.test.mjs. Para a configuración local e os límites da integración ACB, véxase a documentación orixinal máis abaixo. Lectura pública de Rincón verificada; correspondencias revisadas polo administrador.

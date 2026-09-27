@@ -1,3 +1,4 @@
+import {selectRound} from '../lib/round-selection.ts';
 import { AppError,ensure } from './errors.ts';
 import { decrypt,encrypt,hash,invitation } from './crypto.ts';
 import * as acb from './acb.ts';
@@ -33,7 +34,7 @@ export async function state(env:Runtime,user:Identity,roundId?:string){
  if(!m)return {signedIn:true,user:{id:user.userId,name:user.displayName},league:null};
  const rounds=(await statement(env,'SELECT id,label,lock_at AS lockAt,ends_at AS endsAt,closed_at AS closedAt,acb_journey_id AS acbJourneyId,acb_journey_number AS acbJourneyNumber,rincon_journey_number AS rinconJourneyNumber,rincon_season AS rinconSeason FROM rounds WHERE league_id=? ORDER BY lock_at DESC',m.league_id).all()).results as {id:string;label:string;lockAt:number;endsAt:number;closedAt:number|null}[];
  const now=Date.now();
- const selected=rounds.find(r=>r.id===roundId)??rounds.find(r=>r.closedAt===null&&r.lockAt<=now&&r.endsAt>now)??rounds.filter(r=>r.closedAt===null&&r.lockAt>now).sort((a,b)=>a.lockAt-b.lockAt)[0]??rounds[0];
+ const selected=selectRound(rounds,now,roundId);
  const members=(await statement(env,'SELECT m.user_id AS id,m.name,CASE WHEN s.declared_at IS NOT NULL THEN 1 ELSE 0 END AS declared FROM members m LEFT JOIN snapshots s ON s.user_id=m.user_id AND s.round_id=? WHERE m.league_id=? ORDER BY m.name',selected?.id??'',m.league_id).all()).results;
  const link=await statement(env,'SELECT * FROM acb_links WHERE user_id=?',user.userId).first<Link>();
  const acbLinked=!!await statement(env,'SELECT acb_id FROM acb_identities WHERE user_id=?',user.userId).first();

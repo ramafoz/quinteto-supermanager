@@ -36,7 +36,7 @@ test('multiple future rounds can be scheduled while current round stays selected
  await importLineup(env,owner,second.id,fixtureFetch);
  const future=await state(env,owner,second.id);assert.equal(future.round.id,second.id);assert.equal(future.hidden,true);assert.equal(future.lineups[0].penalty,0);
  assert.equal((await state(env,owner)).lineups.length,0);
- await action(env,owner,'close-round',{roundId:round.id});assert.equal((await state(env,owner)).round.id,second.id);
+ await action(env,owner,'close-round',{roundId:round.id});assert.equal((await state(env,owner)).round.id,round.id);
  }finally{db.close();}
 });
 test('overall standings sum completed valid rounds, deduct penalties once and reflect corrections without leaking future data',async()=>{

@@ -14,6 +14,7 @@ import {CatalogReview} from '@/components/catalog-review';
 import Standings from '@/components/standings';
 import BrokerStandings from '@/components/broker-standings';
 import type {BrokerRow} from '@/lib/broker';
+import {selectRound} from '@/lib/round-selection';
 import OverallStandings from '@/components/overall-standings';
 import type {OverallRow} from '@/lib/model';
 import {Checkbox} from '@/components/ui/checkbox';
@@ -44,7 +45,7 @@ export default function LeagueApp(){
   if(operation.current)return null;operation.current=true;setBusy(true);setError('');
   try{const result=await api(action,body);await refresh();if(success)toast.success(success);return result;}catch(e){setError(e instanceof Error?e.message:'Produciuse un erro.');return null;}finally{operation.current=false;setBusy(false);}
  },[refresh]);
- const autoRound=data.rounds?.find(r=>r.closedAt===null&&r.lockAt<=clock&&r.endsAt>clock)??data.rounds?.filter(r=>r.closedAt===null&&r.lockAt>clock).sort((a,b)=>a.lockAt-b.lockAt)[0];
+ const automaticRound=selectRound(data.rounds??[],clock); const autoRound=automaticRound?.closedAt===null&&automaticRound.endsAt>clock?automaticRound:undefined;
  const openRound=data.round&&data.round.closedAt===null&&data.round.endsAt>clock?data.round:undefined;
  useEffect(()=>{setDeclareStart(false);},[data.round?.id]);
  const hidden=!demo&&data.hidden!==false;

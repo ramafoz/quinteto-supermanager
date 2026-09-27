@@ -40,3 +40,6 @@ Detalle: [FONTE-RINCON.md](docs/FONTE-RINCON.md). Fila laranxa clara cando o par
 - [ ] Propor suma(puntos novos − puntos anteriores) para cambios elixibles.
 - [ ] Conservar edición manual, incluídos negativos; resolver cambios múltiples/revertidos e datos pendentes.
 - [ ] Manter gratuítos os cambios anteriores á declaración inicial e fóra da xornada.
+
+## Selección automática de xornada
+- [x] Nas 24 horas previas selecciona a seguinte, se non hai unha xornada en curso. Respecta selección manual e non declara equipos. Antes desa xanela conserva a última disputada. Sen cambios de base de datos.
