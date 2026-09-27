@@ -5,6 +5,9 @@ import {audit,observe} from './audit.ts';
 import {catalogAction} from './catalog.ts';
 import {refreshScores} from './scoring.ts';
 import {refreshRinconScores} from './rincon-scoring.ts';
+import {brokerStandings} from '../lib/broker.ts';
+import {positionCatalog,completePositions,repairPositions} from './positions.ts';
+import type {Round} from '../lib/model.ts';
 import {quota} from '../lib/quota.ts';
 import type {OverallRow} from '../lib/model.ts';
 export type Identity={userId:string;displayName:string};
@@ -49,7 +52,9 @@ export async function state(env:Runtime,user:Identity,roundId?:string){
  }).sort((a,b)=>Number(b.counted>0)-Number(a.counted>0)||b.netPoints-a.netPoints||a.name.localeCompare(b.name));
  // Privacy is enforced in SQL, not merely by hiding columns in the browser.
  const lineups=selected?(await statement(env,`SELECT s.user_id AS userId,m.name,s.team_name AS team,s.players_json,s.imported_at AS importedAt,s.baseline_json,s.changes_count,s.history_json,s.raw_points,s.declared_at,s.penalty_reduction,s.manual_penalty,s.scores_json,s.scores_at FROM snapshots s JOIN members m ON m.user_id=s.user_id WHERE s.round_id=? AND m.league_id=? AND (?=0 OR s.user_id=?) ORDER BY m.name`,selected.id,m.league_id,hidden?1:0,user.userId).all()).results.map(s=>({userId:s.userId,name:s.name,team:s.team,importedAt:s.importedAt,players:JSON.parse(s.players_json as string),quota:quota(JSON.parse(s.players_json as string)),declaredAt:s.declared_at,rawPoints:s.raw_points,netPoints:s.raw_points===null||quota(JSON.parse(s.players_json as string)).status!=='valid'?null:Math.round((Number(s.raw_points)-penalty(s as never))*100)/100,baselineKnown:!!s.declared_at,changes:s.declared_at?s.changes_count:0,penalty:penalty(s as never),scores:s.scores_json?JSON.parse(s.scores_json as string):null,scoresAt:s.scores_at,history:JSON.parse(s.history_json as string)})):[];
- return {signedIn:true,acbLinked,overall,user:{id:user.userId,name:m.name},league:{id:m.league_id,name:m.league_name,isOwner:m.owner_id===user.userId},members,rounds,round:selected??null,hidden,lineups,connection:link?{connected:link.expires_at>Date.now(),expiresAt:link.expires_at,teamId:link.team_id,teamName:link.team_name,teams:JSON.parse(link.teams_json)}:null};
+ const brokerSnapshots=(await statement(env,'SELECT s.round_id,s.user_id,s.players_json,s.scores_json FROM snapshots s JOIN rounds r ON r.id=s.round_id JOIN members m ON m.user_id=s.user_id WHERE r.league_id=? AND m.league_id=? AND r.lock_at<=?',m.league_id,m.league_id,now).all()).results.map(s=>({roundId:String(s.round_id),userId:String(s.user_id),players:JSON.parse(s.players_json as string),scores:s.scores_json?JSON.parse(s.scores_json as string):null}));
+ const broker=brokerStandings(members.map(m=>({id:String(m.id),name:String(m.name)})),rounds as Round[],brokerSnapshots,selected?.id,now);
+ return {signedIn:true,acbLinked,overall,broker,user:{id:user.userId,name:m.name},league:{id:m.league_id,name:m.league_name,isOwner:m.owner_id===user.userId},members,rounds,round:selected??null,hidden,lineups,connection:link?{connected:link.expires_at>Date.now(),expiresAt:link.expires_at,teamId:link.team_id,teamName:link.team_name,teams:JSON.parse(link.teams_json)}:null};
 }
 function text(value:unknown,label:string,max=80){ensure(typeof value==='string'&&value.trim().length>0&&value.length<=max,`${label}: introduce un valor válido.`);return value.trim();}
 async function activeLink(env:Runtime,userId:string){
@@ -66,6 +71,7 @@ export async function importLineup(env:Runtime,user:Identity,roundId:string,fetc
  if(declareStartingTeam&&previous?.declared_at)throw new AppError(409,'ALREADY_DECLARED','Xa declaraches o teu equipo inicial desta xornada.');
  let players:Awaited<ReturnType<typeof acb.roster>>;
  try{players=await acb.roster(link.team_id,jwt,fetcher);}catch(e){if(e instanceof AppError&&e.code==='RECONNECT')await statement(env,'UPDATE acb_links SET expires_at=0 WHERE user_id=? AND jwt=?',user.userId,link.jwt).run();throw e;}
+ players=completePositions(players,(await positionCatalog(env,m.league_id)).positions);
  await observe(env,user.userId,link.team_id,players,automatic);
  const now=Date.now();const savedAt=Math.max(now,(previous?.imported_at??0)+1);const started=now>=round.lock_at;
  const eligibility=quota(players);
@@ -118,8 +124,9 @@ export async function action(env:Runtime,user:Identity,name:string,body:Record<s
   const {link,jwt}=await activeLink(env,user.userId);if(!link.team_id)throw new AppError(409,'SELECT_TEAM','Selecciona o teu equipo ACB.');
   const players=await acb.roster(link.team_id,jwt,fetcher);await observe(env,user.userId,link.team_id,players,true);return {observed:true};
  }
- if(['audit','penalty','acb-journeys','refresh-scores','refresh-rincon-scores'].includes(name)){
+ if(['repair-positions','audit','penalty','acb-journeys','refresh-scores','refresh-rincon-scores'].includes(name)){
   if(m.owner_id!==user.userId)throw new AppError(403,'OWNER_ONLY','Só o administrador pode facer isto.');
+  if(name==='repair-positions')return repairPositions(env,user);
   if(name==='audit'){
    const before=body.before===undefined?Number.MAX_SAFE_INTEGER:Number(body.before);ensure(Number.isSafeInteger(before)&&before>0,'Páxina non válida.');
    const rows=(await statement(env,'SELECT id,at,user_name AS user,message FROM audit_events WHERE league_id=? AND id<? ORDER BY id DESC LIMIT 101',m.league_id,before).all()).results;

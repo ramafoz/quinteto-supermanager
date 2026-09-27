@@ -29,12 +29,12 @@ Detalle: [CATALOGO-EQUIVALENCIAS.md](docs/CATALOGO-EQUIVALENCIAS.md).
 
 Detalle: [FONTE-RINCON.md](docs/FONTE-RINCON.md). Fila laranxa clara cando o partido está en xogo. 61 probas, tipos, compilación e revisión visual superados. Publicación, migración aditiva e GitHub autorizados o 27-09-2026.
 
-## Fase 3 — patrimonio e clasificación broker (sen autorizar implementación)
-- [ ] Capital inicial: 5.000.000 €. Caixa inicial = capital menos compras a prezos de inicio.
-- [ ] Acordar prezos das substitucións e forma de confirmar/corrixir a caixa, incluída a xornada 1.
-- [ ] Gardar patrimonio ao peche = caixa + valor dos xogadores da plantilla final.
-- [ ] Arrastrar patrimonio ás seguintes xornadas; non sumar patrimonios semanais.
-- [ ] Engadir clasificación de broker independente dos puntos.
+## Fase 3 — clasificación de broker (probada; publicación autorizada)
+- [x] 5.000.000 € máis variacións do cadro final; acumulación entre xornadas confirmada polo administrador.
+- [x] Clasificación de xornada e xeral, patrimonio provisional e datos pendentes.
+- [x] Sen duplicar variacións en cada consulta; correccións anteriores actualizan o acumulado.
+- [x] Posicións descoñecidas completadas con equivalencias Rincón: reparación dos cadros gardados e futuras importacións.
+- [x] 66 probas, tipos, compilación e revisión visual. Ver [BROKER.md](docs/BROKER.md).
 
 ## Fase 4 — cálculo asistido do axuste (sen autorizar implementación)
 - [ ] Propor suma(puntos novos − puntos anteriores) para cambios elixibles.
