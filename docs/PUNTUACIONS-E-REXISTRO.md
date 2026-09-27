@@ -1,3 +1,5 @@
+Estado histórico anterior á fase 1. A nova regra preparada en local descríbese en [AXUSTES-MANUAIS.md](AXUSTES-MANUAIS.md); substitúe as referencias a descontos de 25 puntos deste documento. Publicación autorizada o 27-09-2026.
+
 # Puntuacións, declaracións e rexistro
 
 ## Puntuacións ACB

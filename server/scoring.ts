@@ -4,9 +4,10 @@ import {AppError,ensure} from './errors.ts';
 import {decrypt} from './crypto.ts';
 import {journeys,playerScore,type Fetcher,type PlayerScore} from './acb.ts';
 import {auditStatement} from './audit.ts';
-export async function refreshScores(env:Runtime,user:Identity,roundId:string,journeyId:string,fetcher:Fetcher=fetch){
- const round=await env.DB.prepare('SELECT r.*,l.owner_id FROM rounds r JOIN leagues l ON l.id=r.league_id WHERE r.id=? AND l.owner_id=?').bind(roundId,user.userId).first<{id:string;league_id:string;lock_at:number;acb_journey_id:string|null}>();
+export async function refreshScores(env:Runtime,user:Identity,roundId:string,journeyId:string,fetcher:Fetcher=fetch,automatic=false){
+ const round=await env.DB.prepare('SELECT r.*,l.owner_id FROM rounds r JOIN leagues l ON l.id=r.league_id WHERE r.id=? AND l.owner_id=?').bind(roundId,user.userId).first<{id:string;league_id:string;lock_at:number;ends_at:number;closed_at:number|null;acb_journey_id:string|null}>();
  if(!round)throw new AppError(403,'OWNER_ONLY','Só o administrador pode actualizar as puntuacións da súa liga.');
+ if(automatic)ensure(round.closed_at===null&&round.ends_at>Date.now(),'As actualizacións automáticas pararon: a xornada rematou.');
  ensure(round.lock_at<=Date.now(),'A xornada aínda non comezou.');
  const link=await env.DB.prepare('SELECT jwt,expires_at FROM acb_links WHERE user_id=?').bind(user.userId).first<{jwt:string;expires_at:number}>();
  if(!link||link.expires_at<=Date.now())throw new AppError(409,'RECONNECT','Conecta de novo a túa conta ACB para consultar as puntuacións.');
@@ -20,7 +21,7 @@ export async function refreshScores(env:Runtime,user:Identity,roundId:string,jou
  ensure(ids.length<=100,'Demasiados xogadores nunha soa actualización.');
  const scores=new Map<string,PlayerScore>();
  // Bounded concurrency; never write a partial response after an upstream failure.
- for(let i=0;i<ids.length;i+=4){const batch=await Promise.all(ids.slice(i,i+4).map(id=>playerScore(id,journey.number,jwt,fetcher)));for(const score of batch)scores.set(score.id,score);}
+ for(let i=0;i<ids.length;i+=4){if(automatic){const active=await env.DB.prepare('SELECT id FROM rounds WHERE id=? AND closed_at IS NULL AND ends_at>?').bind(roundId,Date.now()).first();ensure(active,'As actualizacións automáticas pararon: a xornada rematou.');}const batch=await Promise.all(ids.slice(i,i+4).map(id=>playerScore(id,journey.number,jwt,fetcher)));for(const score of batch)scores.set(score.id,score);}
  const at=Date.now();const statements=[env.DB.prepare('UPDATE rounds SET acb_journey_id=?,acb_journey_number=? WHERE id=? AND (acb_journey_id IS NULL OR acb_journey_id=?)').bind(journey.id,journey.number,roundId,journey.id)];
  let complete=0;
  for(const snapshot of snapshots){const list=(JSON.parse(snapshot.players_json) as Player[]).map(p=>scores.get(p.id)!);const ready=list.every(s=>s.points!==null);if(ready)complete++;

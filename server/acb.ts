@@ -29,8 +29,8 @@ export function normalizePlayers(raw:unknown):Player[]{
   const active=raw.filter(p=>p&&p.statusTeamSquad!=='empty');
   const players=active.map(p=>{
     if(typeof p.shortName!=='string'||!p.shortName.trim())throw schema();
-    // Numeric position mapping is deliberately not guessed; names still compare by ID.
-    const position=['Base','Alero','Pívot'].includes(p.position)?p.position:'Jugador';
+    // Official SuperManager position codes: base=1, alero=3, pivot=5.
+    const position=['Base','Alero','Pívot'].includes(p.position)?p.position:({1:'Base',3:'Alero',5:'Pívot'}[Number(p.position)]??'Jugador');
     return {id:id(p.idPlayer),name:p.shortName.slice(0,120),position,...(typeof p.nameTeam==='string'&&p.nameTeam.trim()?{club:p.nameTeam.trim().slice(0,120)}:{})};
   });
   if(players.length!==10||new Set(players.map(p=>p.id)).size!==10)throw new AppError(422,'INCOMPLETE_ROSTER','O cadro debe ter 10 xogadores distintos. Completa os cambios en ACB e volve importar.');
@@ -81,12 +81,13 @@ export function normalizeScore(raw:unknown,playerId:string,number:number):Player
 export async function playerScore(playerId:string,number:number,jwt:string,fetcher:Fetcher=fetch){return normalizeScore(await json(`${BASE}/api/basic/playerstats/1/${id(playerId)}`,{headers:{Authorization:`Bearer ${jwt}`}},fetcher),playerId,number);}
 export async function roster(teamId:string,jwt:string,fetcher:Fetcher=fetch){
  const players=normalizePlayers(await json(`${BASE}/api/basic/userteamplayer/${id(teamId)}`,{headers:{Authorization:`Bearer ${jwt}`}},fetcher));
- if(players.every(p=>p.club))return players;
+ if(players.every(p=>p.club&&p.position!=='Jugador'))return players;
  const filters=JSON.stringify([{field:'competition.idCompetition',value:1,operator:'=',condition:'AND'},{field:'edition.isActive',value:true,operator:'=',condition:'AND'}]);
  const url=new URL(`${BASE}/api/basic/player`);url.search=new URLSearchParams({_filters:filters,_page:'1',_perPage:'300'}).toString();
  // The public market adapter supplies nameTeam; unknown clubs remain unverified.
  const market=await json(url.href,{headers:{Authorization:`Bearer ${jwt}`}},fetcher);
  if(!Array.isArray(market))throw schema();
  const clubs=new Map<string,string>();for(const p of market)if(p&&typeof p.nameTeam==='string'&&p.nameTeam.trim())clubs.set(String(p.idPlayer),p.nameTeam.trim().slice(0,120));
- return players.map(p=>({...p,club:p.club??clubs.get(p.id)}));
+ const positions=new Map<string,string>();for(const p of market)if(p){const pos=({1:'Base',3:'Alero',5:'Pívot'}[Number(p.position)]??(['Base','Alero','Pívot'].includes(p.position)?p.position:undefined));if(pos)positions.set(String(p.idPlayer),pos);}
+ return players.map(p=>({...p,club:p.club??clubs.get(p.id),position:p.position==='Jugador'?(positions.get(p.id)??p.position):p.position}));
 }

@@ -1,5 +1,5 @@
 export type Player = { id: string; name: string; position: string; club?:string };
-export type Lineup = { userId: string; name: string; team: string; players: Player[]; importedAt: number; scores?:{id:string;valuation:number|null;points:number|null}[]|null;scoresAt?:number|null;suggestedPenalty?:number;penaltyReduction?:number;declaredAt?:number|null;rawPoints?:number|null;netPoints?:number|null;changes?:number; penalty?:number; baselineKnown?:boolean; history?:{at:number;incoming:Player[];outgoing:Player[];penalty:number;pending?:boolean}[] };
+export type Lineup = { userId: string; name: string; team: string; players: Player[]; importedAt: number; scores?:{id:string;valuation:number|null;points:number|null}[]|null;scoresAt?:number|null;declaredAt?:number|null;rawPoints?:number|null;netPoints?:number|null;changes?:number; penalty?:number; baselineKnown?:boolean; history?:{at:number;incoming:Player[];outgoing:Player[];penalty:number;pending?:boolean}[] };
 export type Round = { acbJourneyId?:string|null;acbJourneyNumber?:number|null; id: string; label: string; lockAt: number; closedAt:number|null;endsAt:number };
 export type OverallRow={userId:string;name:string;rawPoints:number;penalty:number;netPoints:number;counted:number;pending:number;provisional:boolean};
 export function compare(lineups: Lineup[]) {

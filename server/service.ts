@@ -10,7 +10,7 @@ export type Runtime={DB:D1Database;TOKEN_ENCRYPTION_KEY?:string};
 type Member={user_id:string;league_id:string;name:string;owner_id:string;league_name:string};
 type Link={user_id:string;jwt:string;expires_at:number;team_id:string|null;team_name:string|null;teams_json:string};
 type RoundRow={id:string;league_id:string;label:string;lock_at:number;ends_at:number;closed_at:number|null};
-type Snapshot={declared_at:number|null;players_json:string;baseline_json:string|null;changes_count:number;history_json:string;team_id:string;imported_at:number};
+type Snapshot={manual_penalty:number;declared_at:number|null;players_json:string;baseline_json:string|null;changes_count:number;history_json:string;team_id:string;imported_at:number};
 function statement(env:Runtime,sql:string,...params:unknown[]){return env.DB.prepare(sql).bind(...params);}
 async function member(env:Runtime,userId:string){
  const result=await statement(env,'SELECT m.*, l.owner_id, l.name AS league_name FROM members m JOIN leagues l ON l.id=m.league_id WHERE m.user_id=?',userId).first<Member>();
@@ -22,7 +22,7 @@ export async function rateLimit(env:Runtime,userId:string,action:string,max:numb
  if(!row)throw new AppError(429,'RATE_LIMIT','Demasiados intentos. Agarda un minuto e volve probar.');
  await statement(env,'DELETE FROM rate_limits WHERE expires_at<?',Date.now()).run();
 }
-function penalty(s:{declared_at:unknown;changes_count:unknown;penalty_reduction:unknown}){return s.declared_at?Math.max(0,Number(s.changes_count)*25-Number(s.penalty_reduction??0)):0;}
+function penalty(s:{declared_at:unknown;manual_penalty:unknown}){return s.declared_at?Number(s.manual_penalty??0):0;}
 export async function state(env:Runtime,user:Identity,roundId?:string){
  const m=await statement(env,'SELECT m.*, l.owner_id, l.name AS league_name FROM members m JOIN leagues l ON l.id=m.league_id WHERE m.user_id=?',user.userId).first<Member>();
  if(!m)return {signedIn:true,user:{id:user.userId,name:user.displayName},league:null};
@@ -33,11 +33,12 @@ export async function state(env:Runtime,user:Identity,roundId?:string){
  const link=await statement(env,'SELECT * FROM acb_links WHERE user_id=?',user.userId).first<Link>();
  const acbLinked=!!await statement(env,'SELECT acb_id FROM acb_identities WHERE user_id=?',user.userId).first();
  const hidden=!selected||selected.lockAt>Date.now();
- const completed=(await statement(env,'SELECT s.user_id,s.players_json,s.raw_points,s.changes_count,s.declared_at,s.penalty_reduction,s.baseline_json,s.history_json FROM snapshots s JOIN rounds r ON r.id=s.round_id JOIN members m ON m.user_id=s.user_id WHERE r.league_id=? AND m.league_id=? AND r.lock_at<=? AND (r.closed_at IS NOT NULL OR r.ends_at<=?)',m.league_id,m.league_id,now,now).all()).results;
+ const completed=(await statement(env,'SELECT s.user_id,s.players_json,s.raw_points,s.scores_json,s.scores_at,s.changes_count,s.declared_at,s.penalty_reduction,s.manual_penalty,s.baseline_json,s.history_json FROM snapshots s JOIN rounds r ON r.id=s.round_id JOIN members m ON m.user_id=s.user_id WHERE r.league_id=? AND m.league_id=? AND r.lock_at<=? AND (r.closed_at IS NOT NULL OR r.ends_at<=?)',m.league_id,m.league_id,now,now).all()).results;
  const completedCount=rounds.filter(r=>r.lockAt<=now&&(r.closedAt!==null||r.endsAt<=now)).length;
  const overall:OverallRow[]=members.map(person=>{
   const row:OverallRow={userId:String(person.id),name:String(person.name),rawPoints:0,penalty:0,netPoints:0,counted:0,pending:completedCount,provisional:false};
   for(const snapshot of completed.filter(s=>s.user_id===person.id)){
+   if(snapshot.scores_at&&snapshot.scores_json&&JSON.parse(snapshot.scores_json as string).some((s:{points:number|null})=>s.points===null))continue;
    if(snapshot.raw_points===null||quota(JSON.parse(snapshot.players_json as string)).status!=='valid')continue;
    row.rawPoints+=Number(snapshot.raw_points);row.penalty+=penalty(snapshot as never);row.counted++;row.pending--;
    if(!snapshot.declared_at||JSON.parse(snapshot.history_json as string).some((h:{pending?:boolean})=>h.pending))row.provisional=true;
@@ -45,7 +46,7 @@ export async function state(env:Runtime,user:Identity,roundId?:string){
   row.rawPoints=Math.round(row.rawPoints*100)/100;row.netPoints=Math.round((row.rawPoints-row.penalty)*100)/100;return row;
  }).sort((a,b)=>Number(b.counted>0)-Number(a.counted>0)||b.netPoints-a.netPoints||a.name.localeCompare(b.name));
  // Privacy is enforced in SQL, not merely by hiding columns in the browser.
- const lineups=selected?(await statement(env,`SELECT s.user_id AS userId,m.name,s.team_name AS team,s.players_json,s.imported_at AS importedAt,s.baseline_json,s.changes_count,s.history_json,s.raw_points,s.declared_at,s.penalty_reduction,s.scores_json,s.scores_at FROM snapshots s JOIN members m ON m.user_id=s.user_id WHERE s.round_id=? AND m.league_id=? AND (?=0 OR s.user_id=?) ORDER BY m.name`,selected.id,m.league_id,hidden?1:0,user.userId).all()).results.map(s=>({userId:s.userId,name:s.name,team:s.team,importedAt:s.importedAt,players:JSON.parse(s.players_json as string),quota:quota(JSON.parse(s.players_json as string)),declaredAt:s.declared_at,rawPoints:s.raw_points,netPoints:s.raw_points===null||quota(JSON.parse(s.players_json as string)).status!=='valid'?null:Math.round((Number(s.raw_points)-penalty(s as never))*100)/100,baselineKnown:!!s.declared_at,changes:s.declared_at?s.changes_count:0,penalty:penalty(s as never),suggestedPenalty:s.declared_at?Number(s.changes_count)*25:0,penaltyReduction:s.penalty_reduction,scores:s.scores_json?JSON.parse(s.scores_json as string):null,scoresAt:s.scores_at,history:JSON.parse(s.history_json as string)})):[];
+ const lineups=selected?(await statement(env,`SELECT s.user_id AS userId,m.name,s.team_name AS team,s.players_json,s.imported_at AS importedAt,s.baseline_json,s.changes_count,s.history_json,s.raw_points,s.declared_at,s.penalty_reduction,s.manual_penalty,s.scores_json,s.scores_at FROM snapshots s JOIN members m ON m.user_id=s.user_id WHERE s.round_id=? AND m.league_id=? AND (?=0 OR s.user_id=?) ORDER BY m.name`,selected.id,m.league_id,hidden?1:0,user.userId).all()).results.map(s=>({userId:s.userId,name:s.name,team:s.team,importedAt:s.importedAt,players:JSON.parse(s.players_json as string),quota:quota(JSON.parse(s.players_json as string)),declaredAt:s.declared_at,rawPoints:s.raw_points,netPoints:s.raw_points===null||quota(JSON.parse(s.players_json as string)).status!=='valid'?null:Math.round((Number(s.raw_points)-penalty(s as never))*100)/100,baselineKnown:!!s.declared_at,changes:s.declared_at?s.changes_count:0,penalty:penalty(s as never),scores:s.scores_json?JSON.parse(s.scores_json as string):null,scoresAt:s.scores_at,history:JSON.parse(s.history_json as string)})):[];
  return {signedIn:true,acbLinked,overall,user:{id:user.userId,name:m.name},league:{id:m.league_id,name:m.league_name,isOwner:m.owner_id===user.userId},members,rounds,round:selected??null,hidden,lineups,connection:link?{connected:link.expires_at>Date.now(),expiresAt:link.expires_at,teamId:link.team_id,teamName:link.team_name,teams:JSON.parse(link.teams_json)}:null};
 }
 function text(value:unknown,label:string,max=80){ensure(typeof value==='string'&&value.trim().length>0&&value.length<=max,`${label}: introduce un valor válido.`);return value.trim();}
@@ -79,18 +80,18 @@ export async function importLineup(env:Runtime,user:Identity,roundId:string,fetc
  const baseline=declareStartingTeam||(!started&&previous?.declared_at)?JSON.stringify(players):previous?.baseline_json??null;
  const declaredAt=declareStartingTeam?now:previous?.declared_at??null;
  const history=started&&previous&&!declareStartingTeam?JSON.parse(previous.history_json):[];
- if(started&&incoming.length)history.push({at:now,incoming,outgoing,penalty:charged*25,pending:ambiguous||!previous?.declared_at});
+ if(started&&incoming.length)history.push({at:now,incoming,outgoing,penalty:0,pending:ambiguous||!previous?.declared_at});
  // Compare-and-swap prevents concurrent imports from double-counting penalties.
  const saved=await statement(env,`INSERT INTO snapshots (round_id,user_id,team_id,team_name,players_json,imported_at,baseline_json,changes_count,history_json,declared_at)
  SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM rounds WHERE id=? AND league_id=? AND closed_at IS NULL AND ends_at>?)
  AND COALESCE((SELECT imported_at FROM snapshots WHERE round_id=? AND user_id=?),-1)=?
  AND (?=1 OR EXISTS(SELECT 1 FROM rounds WHERE id=? AND lock_at>?))
  AND EXISTS(SELECT 1 FROM acb_links WHERE user_id=? AND jwt=? AND team_id=?)
- ON CONFLICT(round_id,user_id) DO UPDATE SET team_id=excluded.team_id,team_name=excluded.team_name,players_json=excluded.players_json,imported_at=excluded.imported_at,baseline_json=excluded.baseline_json,changes_count=excluded.changes_count,history_json=excluded.history_json,declared_at=excluded.declared_at,penalty_reduction=CASE WHEN ?=1 THEN 0 ELSE snapshots.penalty_reduction END,scores_json=CASE WHEN snapshots.players_json<>excluded.players_json THEN NULL ELSE snapshots.scores_json END,scores_at=CASE WHEN snapshots.players_json<>excluded.players_json THEN NULL ELSE snapshots.scores_at END,raw_points=CASE WHEN snapshots.scores_json IS NOT NULL AND snapshots.players_json<>excluded.players_json THEN NULL ELSE snapshots.raw_points END
+ ON CONFLICT(round_id,user_id) DO UPDATE SET team_id=excluded.team_id,team_name=excluded.team_name,players_json=excluded.players_json,imported_at=excluded.imported_at,baseline_json=excluded.baseline_json,changes_count=excluded.changes_count,history_json=excluded.history_json,declared_at=excluded.declared_at,manual_penalty=CASE WHEN ?=1 THEN 0 ELSE snapshots.manual_penalty END,scores_json=CASE WHEN snapshots.players_json<>excluded.players_json THEN NULL ELSE snapshots.scores_json END,scores_at=CASE WHEN snapshots.players_json<>excluded.players_json THEN NULL ELSE snapshots.scores_at END,raw_points=CASE WHEN snapshots.scores_json IS NOT NULL AND snapshots.players_json<>excluded.players_json THEN NULL ELSE snapshots.raw_points END
  WHERE excluded.imported_at>snapshots.imported_at RETURNING imported_at`,round.id,user.userId,link.team_id,link.team_name,JSON.stringify(players),savedAt,baseline,changes,JSON.stringify(history),declaredAt,round.id,m.league_id,now,round.id,user.userId,previous?.imported_at??-1,started?1:0,round.id,now,user.userId,link.jwt,link.team_id,declareStartingTeam?1:0).first();
  if(!saved)throw new AppError(409,'IMPORT_CONFLICT','A xornada pechouse ou a conexión cambiou durante a importación.');
  if(declareStartingTeam)await audit(env,user.userId,`Equipo marcado como inicial na xornada ${round.label}.`);
- return {imported:true,players:players.length,importedAt:savedAt,changes,penalty:changes*25,baselineKnown:!!baseline};
+ return {imported:true,players:players.length,importedAt:savedAt,changes,penalty:declareStartingTeam?0:previous?penalty(previous):0,baselineKnown:!!baseline};
 }
 export async function action(env:Runtime,user:Identity,name:string,body:Record<string,unknown>,fetcher:acb.Fetcher=fetch):Promise<unknown>{
  await rateLimit(env,user.userId,name,name==='connect'?5:30);
@@ -122,13 +123,13 @@ export async function action(env:Runtime,user:Identity,name:string,body:Record<s
    return {events:rows.slice(0,100),next:rows.length>100?rows[99].id:null};
   }
   if(name==='acb-journeys'){const {jwt}=await activeLink(env,user.userId);return {journeys:await acb.journeys(jwt,fetcher)};}
-  if(name==='refresh-scores')return refreshScores(env,user,text(body.roundId,'Xornada'),typeof body.journeyId==='string'?body.journeyId:'',fetcher);
+  if(name==='refresh-scores')return refreshScores(env,user,text(body.roundId,'Xornada'),typeof body.journeyId==='string'?body.journeyId:'',fetcher,body.automatic===true);
   const roundId=text(body.roundId,'Xornada');const target=text(body.userId,'Participante',200);const amount=Number(body.penalty);
-  ensure(body.penalty!==''&&Number.isFinite(amount)&&amount>=0&&Number.isInteger(amount*100),'Indica unha penalización válida.');
-  const saved=await statement(env,`UPDATE snapshots SET penalty_reduction=changes_count*25-? WHERE round_id=? AND user_id=? AND declared_at IS NOT NULL AND ?>=0 AND ?<=changes_count*25 AND EXISTS(SELECT 1 FROM rounds WHERE id=? AND league_id=?) RETURNING changes_count`,amount,roundId,target,amount,amount,roundId,m.league_id).first();
-  if(!saved)throw new AppError(409,'PENALTY','Só podes reducir a penalización detectada dun equipo declarado da túa liga.');
+  ensure((typeof body.penalty==='number'||typeof body.penalty==='string'&&body.penalty.trim()!=='')&&Number.isFinite(amount)&&Math.abs(amount)<=10000&&Math.abs(amount*100-Math.round(amount*100))<0.000001,'Indica un axuste entre −10000 e 10000 cun máximo de dous decimais.');
+  const saved=await statement(env,`UPDATE snapshots SET manual_penalty=? WHERE round_id=? AND user_id=? AND declared_at IS NOT NULL AND EXISTS(SELECT 1 FROM rounds WHERE id=? AND league_id=? AND lock_at<=?) RETURNING manual_penalty`,Math.round(amount*100)/100,roundId,target,roundId,m.league_id,Date.now()).first();
+  if(!saved)throw new AppError(409,'PENALTY','O equipo debe estar declarado nunha xornada iniciada da túa liga.');
   const adjustedRound=await statement(env,'SELECT label FROM rounds WHERE id=?',roundId).first<{label:string}>();
-  await audit(env,target,`O administrador axustou a penalización da xornada ${adjustedRound?.label??''} a ${amount} puntos.`);return {adjusted:true};
+  await audit(env,target,`O administrador gardou o axuste manual a restar da xornada ${adjustedRound?.label??''} a ${amount} puntos.`);return {adjusted:true};
  }
  if(name==='remove-member'){
   if(m.owner_id!==user.userId)throw new AppError(403,'OWNER_ONLY','Só o creador da liga pode eliminar participantes.');
@@ -149,7 +150,7 @@ export async function action(env:Runtime,user:Identity,name:string,body:Record<s
   if(name==='score'){
    const roundId=text(body.roundId,'Xornada');const userId=text(body.userId,'Usuario',200);const points=Number(body.points);
    ensure(body.points!==''&&Number.isFinite(points)&&points>=-1000&&points<=10000&&Math.abs(points*100-Math.round(points*100))<0.000001,'Introduce a puntuación ACB cun máximo de dous decimais.');
-   const saved=await statement(env,`UPDATE snapshots SET raw_points=? WHERE round_id=? AND user_id=? AND EXISTS(SELECT 1 FROM rounds WHERE id=? AND league_id=? AND (closed_at IS NOT NULL OR ends_at<=?)) RETURNING raw_points`,points,roundId,userId,roundId,m.league_id,Date.now()).first();
+   const saved=await statement(env,`UPDATE snapshots SET raw_points=?,scores_at=NULL WHERE round_id=? AND user_id=? AND EXISTS(SELECT 1 FROM rounds WHERE id=? AND league_id=? AND (closed_at IS NOT NULL OR ends_at<=?)) RETURNING raw_points`,points,roundId,userId,roundId,m.league_id,Date.now()).first();
    if(!saved)throw new AppError(409,'SCORE_NOT_READY','A xornada debe ter rematado e o participante debe ter un cadro rexistrado.');return {scored:true};
   }
   if(name==='close-round'){const id=text(body.roundId,'Xornada');const closed=await statement(env,'UPDATE rounds SET closed_at=? WHERE id=? AND league_id=? AND closed_at IS NULL AND lock_at<=? RETURNING id',Date.now(),id,m.league_id,Date.now()).first();if(!closed)throw new AppError(409,'ROUND_STATE','Só podes rematar unha xornada que xa comezase.');return {closed:true};}

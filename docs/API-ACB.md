@@ -1,3 +1,5 @@
+Estado histórico anterior á fase 1. A nova regra preparada en local descríbese en [AXUSTES-MANUAIS.md](AXUSTES-MANUAIS.md); substitúe as referencias a descontos de 25 puntos deste documento. Publicación autorizada o 27-09-2026.
+
 Actualización: véxase [PUNTUACIONS-E-REXISTRO.md](PUNTUACIONS-E-REXISTRO.md) para o contrato das estatísticas por xogador e xornada e a nova regra de declaración.
 
 # Contrato ACB y comprobaciones pendientes

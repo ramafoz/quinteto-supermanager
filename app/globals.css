@@ -11,3 +11,4 @@
 .quota{font-size:14px;padding:8px 10px;border-radius:6px;margin:12px 0;background:#edf4f2;color:#285a4a}.quota.invalid,.quota.unknown{background:#fff1e7;color:#a43d16}.team-card li{gap:12px}.team-card li small{text-align:right;max-width:55%}
 
 .declaration-badge{display:flex;flex-direction:column;gap:3px;padding:10px 14px;border:1px solid #cbd4df;border-radius:9px;background:#f4f6f9}.declaration-badge span{font-size:14px;color:#53627a}.declaration-badge.declared{border-color:#26845f;background:#edf9f1}.declaration-badge.declared span{color:#15633f}.view-tabs{max-width:100%;overflow-x:auto}
+.filters{flex-wrap:wrap}.filters select,.action-row select{max-width:100%;border:1px solid #cbd4df;border-radius:8px;background:white;padding:8px 10px;color:#26364e}.action-row label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.team-card li{flex-wrap:wrap;gap:5px}.team-card li small{flex-basis:100%}

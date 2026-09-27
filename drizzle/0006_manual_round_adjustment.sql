@@ -1,0 +1,1 @@
+ALTER TABLE `snapshots` ADD `manual_penalty` real DEFAULT 0 NOT NULL;

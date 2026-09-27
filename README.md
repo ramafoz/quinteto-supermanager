@@ -2,14 +2,14 @@
 
 Código da miniweb dunha liga privada SuperManager ACB. Esta copia permite revisar as regras, o acceso aos datos e as probas.
 
-Exportación da versión publicada do 26-09-2026, commit de orixe a9116762d8ff9383e9058d244acb4d982ccc3ab9. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Comeza cun historial limpo para non publicar metadatos dos despregamentos anteriores.
+Exportación da versión publicada do 27-09-2026, commit de orixe 2ca3e91123d4c9c5e49114d4bd969a6eb9f81d58. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
 
 Puntos para revisar:
 - server/service.ts: autorización, declaración inicial e penalizacións.
 - server/scoring.ts e server/acb.ts: puntuacións ACB.
 - server/audit.ts: rexistro privado do administrador.
-- tests/: 39 probas, incluída a migración que conserva datos previos.
-- docs/PUNTUACIONS-E-REXISTRO.md: regras e limitacións.
+- tests/: 44 probas, incluída a migración que conserva datos previos.
+- docs/AXUSTES-MANUAIS.md e TODO.md: axustes manuais e fases pendentes.
 
 Para executar as probas: Node.js 24, npm ci e node --test tests/*.test.mjs. Para a configuración local e os límites da integración ACB, véxase a documentación orixinal máis abaixo. A comprobación autenticada real das novas estatísticas segue pendente.
 
@@ -27,10 +27,10 @@ Ver tamén [puntuacións ACB, revisión de penalizacións e rexistro privado](do
 
 - Antes del inicio, cada usuario solo recibe su propia plantilla. Se ocultan coincidencias, diferenciales y clasificación. La restricción se aplica en el servidor.
 - Cambios gratuitos antes de la jornada y entre jornadas. Cada jornada tiene inicio y final configurados por el creador.
-- Solo después de la declaración inicial y durante la jornada: 25 puntos por sustitución detectada, reducibles o anulables por el administrador. No se duplica la penalización al reimportar la misma plantilla. Volver a un jugador anterior cuenta si ambos cambios fueron observados.
+- Ajuste manual por jornada: suma de puntos de jugadores nuevos menos anteriores, solo tras la declaración y durante la jornada. El administrador guarda el total con signo; las importaciones no añaden descuentos automáticos. Ver docs/AXUSTES-MANUAIS.md (fase probada y autorizada para publicación el 27-09-2026).
 - Declaración de honor «Este era mi equipo al inicio de la jornada», incluso registrándolo después. Se acepta la plantilla actual como referencia. Una declaración por jornada; los cambios anteriores a la primera declaración nunca penalizan.
 - Sin declaración, una diferencia entre una consulta anterior y otra posterior al inicio queda pendiente, sin descuento automático, porque no conocemos su hora real.
-- Clasificación por jornada: puntos ACB menos penalización. Ejemplo: 203 − (2 × 25) = 153. Las penalizaciones no se arrastran a la siguiente jornada.
+- Clasificación por jornada: puntos ACB menos penalización. Ejemplo con ajuste manual −4: 203 − (−4) = 207. Las penalizaciones no se arrastran a la siguiente jornada.
 - Mínimo dos jugadores en total entre Río Breogán, Leyma Coruña y Obradoiro, mezclables. Una plantilla inicial que no cumple o no puede verificarse no se acepta. Si una plantilla ya observada incumple después, se conserva para no perder el historial, pero queda sin validar en clasificación. No se inventa otra sanción en puntos.
 - Final automático según horario o anticipado por el creador. Después no se actualiza la plantilla de esa jornada. Se puede abrir la siguiente con un contador de cambios nuevo.
 
