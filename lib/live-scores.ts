@@ -1,6 +1,6 @@
 import type {Lineup,Player} from './model.ts';
 export function livePoints(team:Lineup){
- if(team.rawPoints!=null&&(!team.scores||team.scoresAt===null||team.scores.every(s=>s.points!==null)))return team.rawPoints;
+ if(team.rawPoints!=null&&(!team.scores||team.scoresAt===null||team.scores.every(s=>s.points!==null&&!s.stale)))return team.rawPoints;
  const published=team.scores?.filter(s=>s.points!==null);
  return published?.length?Math.round(published.reduce((sum,s)=>sum+s.points!,0)*100)/100:team.scores?null:team.rawPoints??null;
 }

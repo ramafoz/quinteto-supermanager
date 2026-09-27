@@ -2,17 +2,17 @@
 
 Código da miniweb dunha liga privada SuperManager ACB. Esta copia permite revisar as regras, o acceso aos datos e as probas.
 
-Exportación da versión publicada do 27-09-2026, commit de orixe d30eba0c1ab8cd24960d6c5bb2b8597f34eeae67. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
+Exportación da versión publicada do 27-09-2026, commit de orixe 7b0264ecf9528884ce0bcc89184a1f80abb9ad66. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
 
 Puntos para revisar:
 - server/service.ts: autorización, declaración inicial e penalizacións.
-- server/scoring.ts e server/acb.ts: puntuacións ACB.
+- server/rincon.ts e server/rincon-scoring.ts: puntuacións SM e broker de Rincón.
 - server/audit.ts: rexistro privado do administrador.
 - server/catalog.ts e components/catalog-review.tsx: revisión privada do catálogo.
-- tests/: 51 probas, incluída a migración que conserva datos previos.
+- tests/: 61 probas, incluída a migración que conserva datos previos.
 - docs/AXUSTES-MANUAIS.md e TODO.md: axustes manuais e fases pendentes.
 
-Para executar as probas: Node.js 24, npm ci e node --test tests/*.test.mjs. Para a configuración local e os límites da integración ACB, véxase a documentación orixinal máis abaixo. A comprobación autenticada real das novas estatísticas segue pendente.
+Para executar as probas: Node.js 24, npm ci e node --test tests/*.test.mjs. Para a configuración local e os límites da integración ACB, véxase a documentación orixinal máis abaixo. Lectura pública de Rincón verificada; correspondencias revisadas polo administrador.
 
 Esta é unha copia pública para revisión, sen sincronización automática co servizo publicado. As licenzas de dependencias e compoñentes de terceiros consérvanse nos ficheiros correspondentes.
 

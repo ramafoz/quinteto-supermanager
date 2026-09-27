@@ -16,16 +16,18 @@ O usuario revogou os permisos anteriores. O 27-09-2026 aprobou publicar a fase 1
 - [x] Botón «Actualizar catálogo», conservación de ausencias e control de actualizacións simultáneas.
 - [x] Migración aditiva, 51 probas, tipos, compilación e comprobación no navegador local.
 - [x] Publicación, migración remota e sincronización con GitHub autorizadas o 27-09-2026.
-- [ ] Verificar primeira consulta completa coa sesión ACB real tras publicación autorizada.
+- [x] Consulta completa e equivalencias verificadas polo administrador.
 
 Detalle: [CATALOGO-EQUIVALENCIAS.md](docs/CATALOGO-EQUIVALENCIAS.md).
 
-## Fase 2b — fonte Rincón e lousa (sen autorizar implementación)
-- [ ] Verificar lectura de puntuacións e prezos de https://www.rincondelmanager.com/ e correspondencia inequívoca con IDs ACB.
-- [ ] Distinguir puntos SuperManager de valoración sen bonus e prezos de apertura/peche por tempada e xornada.
-- [ ] Gardar datos válidos con hora e fonte; conservar o anterior ante erros ou datos ausentes.
-- [ ] Engadir Broker ao lado de Puntos ACB; abreviar clubs e retirar «Aposta única».
-- [ ] Revisar frecuencia e custo de actualizacións da nova fonte antes de activala.
+## Fase 2b — fonte Rincón e lousa (probada; publicación autorizada)
+- [x] Verificar lectura de puntuacións e prezos de https://www.rincondelmanager.com/ e correspondencia inequívoca con IDs ACB.
+- [x] Distinguir puntos SuperManager de valoración sen bonus e prezos de apertura/peche por tempada e xornada.
+- [x] Gardar datos válidos con hora e fonte; conservar o anterior ante erros ou datos ausentes.
+- [x] Engadir Broker ao lado de Puntos ACB; abreviar clubs e retirar «Aposta única».
+- [x] Revisar frecuencia e custo de actualizacións da nova fonte antes de activala.
+
+Detalle: [FONTE-RINCON.md](docs/FONTE-RINCON.md). Fila laranxa clara cando o partido está en xogo. 61 probas, tipos, compilación e revisión visual superados. Publicación, migración aditiva e GitHub autorizados o 27-09-2026.
 
 ## Fase 3 — patrimonio e clasificación broker (sen autorizar implementación)
 - [ ] Capital inicial: 5.000.000 €. Caixa inicial = capital menos compras a prezos de inicio.

@@ -12,3 +12,5 @@
 
 .declaration-badge{display:flex;flex-direction:column;gap:3px;padding:10px 14px;border:1px solid #cbd4df;border-radius:9px;background:#f4f6f9}.declaration-badge span{font-size:14px;color:#53627a}.declaration-badge.declared{border-color:#26845f;background:#edf9f1}.declaration-badge.declared span{color:#15633f}.view-tabs{max-width:100%;overflow-x:auto}
 .filters{flex-wrap:wrap}.filters select,.action-row select{max-width:100%;border:1px solid #cbd4df;border-radius:8px;background:white;padding:8px 10px;color:#26364e}.action-row label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.team-card li{flex-wrap:wrap;gap:5px}.team-card li small{flex-basis:100%}
+
+.comparison tr.player-playing>td,.comparison tr.player-playing:hover>td{background:#fff0df}.legend{flex-wrap:wrap}.legend i.playing-key{background:#fff0df;border:1px solid #edc49a}.comparison td:first-child,.comparison th:first-child{min-width:150px;width:190px}.comparison td:nth-child(3){min-width:140px}.comparison td small{display:block}

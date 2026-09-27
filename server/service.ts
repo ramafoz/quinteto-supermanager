@@ -4,6 +4,7 @@ import * as acb from './acb.ts';
 import {audit,observe} from './audit.ts';
 import {catalogAction} from './catalog.ts';
 import {refreshScores} from './scoring.ts';
+import {refreshRinconScores} from './rincon-scoring.ts';
 import {quota} from '../lib/quota.ts';
 import type {OverallRow} from '../lib/model.ts';
 export type Identity={userId:string;displayName:string};
@@ -27,7 +28,7 @@ function penalty(s:{declared_at:unknown;manual_penalty:unknown}){return s.declar
 export async function state(env:Runtime,user:Identity,roundId?:string){
  const m=await statement(env,'SELECT m.*, l.owner_id, l.name AS league_name FROM members m JOIN leagues l ON l.id=m.league_id WHERE m.user_id=?',user.userId).first<Member>();
  if(!m)return {signedIn:true,user:{id:user.userId,name:user.displayName},league:null};
- const rounds=(await statement(env,'SELECT id,label,lock_at AS lockAt,ends_at AS endsAt,closed_at AS closedAt,acb_journey_id AS acbJourneyId,acb_journey_number AS acbJourneyNumber FROM rounds WHERE league_id=? ORDER BY lock_at DESC',m.league_id).all()).results as {id:string;label:string;lockAt:number;endsAt:number;closedAt:number|null}[];
+ const rounds=(await statement(env,'SELECT id,label,lock_at AS lockAt,ends_at AS endsAt,closed_at AS closedAt,acb_journey_id AS acbJourneyId,acb_journey_number AS acbJourneyNumber,rincon_journey_number AS rinconJourneyNumber,rincon_season AS rinconSeason FROM rounds WHERE league_id=? ORDER BY lock_at DESC',m.league_id).all()).results as {id:string;label:string;lockAt:number;endsAt:number;closedAt:number|null}[];
  const now=Date.now();
  const selected=rounds.find(r=>r.id===roundId)??rounds.find(r=>r.closedAt===null&&r.lockAt<=now&&r.endsAt>now)??rounds.filter(r=>r.closedAt===null&&r.lockAt>now).sort((a,b)=>a.lockAt-b.lockAt)[0]??rounds[0];
  const members=(await statement(env,'SELECT m.user_id AS id,m.name,CASE WHEN s.declared_at IS NOT NULL THEN 1 ELSE 0 END AS declared FROM members m LEFT JOIN snapshots s ON s.user_id=m.user_id AND s.round_id=? WHERE m.league_id=? ORDER BY m.name',selected?.id??'',m.league_id).all()).results;
@@ -39,7 +40,7 @@ export async function state(env:Runtime,user:Identity,roundId?:string){
  const overall:OverallRow[]=members.map(person=>{
   const row:OverallRow={userId:String(person.id),name:String(person.name),rawPoints:0,penalty:0,netPoints:0,counted:0,pending:completedCount,provisional:false};
   for(const snapshot of completed.filter(s=>s.user_id===person.id)){
-   if(snapshot.scores_at&&snapshot.scores_json&&JSON.parse(snapshot.scores_json as string).some((s:{points:number|null})=>s.points===null))continue;
+   if(snapshot.scores_at&&snapshot.scores_json&&JSON.parse(snapshot.scores_json as string).some((s:{points:number|null;stale?:boolean})=>s.points===null||s.stale))continue;
    if(snapshot.raw_points===null||quota(JSON.parse(snapshot.players_json as string)).status!=='valid')continue;
    row.rawPoints+=Number(snapshot.raw_points);row.penalty+=penalty(snapshot as never);row.counted++;row.pending--;
    if(!snapshot.declared_at||JSON.parse(snapshot.history_json as string).some((h:{pending?:boolean})=>h.pending))row.provisional=true;
@@ -117,7 +118,7 @@ export async function action(env:Runtime,user:Identity,name:string,body:Record<s
   const {link,jwt}=await activeLink(env,user.userId);if(!link.team_id)throw new AppError(409,'SELECT_TEAM','Selecciona o teu equipo ACB.');
   const players=await acb.roster(link.team_id,jwt,fetcher);await observe(env,user.userId,link.team_id,players,true);return {observed:true};
  }
- if(['audit','penalty','acb-journeys','refresh-scores'].includes(name)){
+ if(['audit','penalty','acb-journeys','refresh-scores','refresh-rincon-scores'].includes(name)){
   if(m.owner_id!==user.userId)throw new AppError(403,'OWNER_ONLY','Só o administrador pode facer isto.');
   if(name==='audit'){
    const before=body.before===undefined?Number.MAX_SAFE_INTEGER:Number(body.before);ensure(Number.isSafeInteger(before)&&before>0,'Páxina non válida.');
@@ -125,6 +126,7 @@ export async function action(env:Runtime,user:Identity,name:string,body:Record<s
    return {events:rows.slice(0,100),next:rows.length>100?rows[99].id:null};
   }
   if(name==='acb-journeys'){const {jwt}=await activeLink(env,user.userId);return {journeys:await acb.journeys(jwt,fetcher)};}
+  if(name==='refresh-rincon-scores')return refreshRinconScores(env,user,text(body.roundId,'Xornada'),body.journeyNumber,fetcher,body.automatic===true);
   if(name==='refresh-scores')return refreshScores(env,user,text(body.roundId,'Xornada'),typeof body.journeyId==='string'?body.journeyId:'',fetcher,body.automatic===true);
   const roundId=text(body.roundId,'Xornada');const target=text(body.userId,'Participante',200);const amount=Number(body.penalty);
   ensure((typeof body.penalty==='number'||typeof body.penalty==='string'&&body.penalty.trim()!=='')&&Number.isFinite(amount)&&Math.abs(amount)<=10000&&Math.abs(amount*100-Math.round(amount*100))<0.000001,'Indica un axuste entre −10000 e 10000 cun máximo de dous decimais.');
