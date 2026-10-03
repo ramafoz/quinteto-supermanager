@@ -1,23 +1,3 @@
-# Revisión pública de Quinteto
-
-Código da miniweb dunha liga privada SuperManager ACB. Esta copia permite revisar as regras, o acceso aos datos e as probas.
-
-Exportación da versión publicada do 27-09-2026, commit de orixe 1bc0ee3ffa7c3f101a61f3e5a5feee67a2cdde5e. O código da aplicación é o mesmo; a configuración pública omite o identificador do despregamento. Non inclúe a base de datos, contas reais, tokens, segredos nin rexistros de actividade. Conserva o historial público anterior.
-
-Puntos para revisar:
-- server/service.ts: autorización, declaración inicial e penalizacións.
-- server/rincon.ts e server/rincon-scoring.ts: puntuacións SM e broker de Rincón.
-- server/audit.ts: rexistro privado do administrador.
-- server/catalog.ts e components/catalog-review.tsx: revisión privada do catálogo.
-- tests/: 69 probas, incluída a migración que conserva datos previos.
-- docs/AXUSTES-MANUAIS.md e TODO.md: axustes manuais e fases pendentes.
-
-Para executar as probas: Node.js 24, npm ci e node --test tests/*.test.mjs. Para a configuración local e os límites da integración ACB, véxase a documentación orixinal máis abaixo. Lectura pública de Rincón verificada; correspondencias revisadas polo administrador.
-
-Esta é unha copia pública para revisión, sen sincronización automática co servizo publicado. As licenzas de dependencias e compoñentes de terceiros consérvanse nos ficheiros correspondentes.
-
----
-
 # Quinteto — liga privada de SuperManager ACB
 
 MVP con React, Vite/Vinext, backend HTTP y SQLite (Cloudflare D1). Acceso directo con ACB y código de invitación a la liga, sin cuenta ChatGPT para los participantes. Ver [acceso y migración](docs/ACCESO.md).

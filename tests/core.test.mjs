@@ -39,6 +39,19 @@ test('multiple future rounds can be scheduled while current round stays selected
  await action(env,owner,'close-round',{roundId:round.id});assert.equal((await state(env,owner)).round.id,round.id);
  }finally{db.close();}
 });
+test('each roster exposes only the players added since its previous saved round',async()=>{
+ const {env,db,round}=await setup();try{
+  await importLineup(env,owner,round.id,fixtureFetch);
+  const now=Date.now();db.prepare('UPDATE rounds SET lock_at=?,ends_at=?,closed_at=? WHERE id=?').run(now-20000,now-10000,now-5000,round.id);
+  const next=await action(env,owner,'round',{label:'J2',lockAt:now+3600000,endsAt:now+7200000});
+  const changed=[{...rawPlayers[0],idPlayer:99,shortName:'Novo fichaxe'},...rawPlayers.slice(1)];
+  await importLineup(env,owner,next.id,async()=>Response.json(changed));
+  const first=(await state(env,owner,round.id)).lineups[0];
+  const second=(await state(env,owner,next.id)).lineups[0];
+  assert.deepEqual(first.newPlayerIds,[]);
+  assert.deepEqual(second.newPlayerIds,['99']);
+ }finally{db.close();}
+});
 test('overall standings sum completed valid rounds, deduct penalties once and reflect corrections without leaking future data',async()=>{
  const {env,db,round}=await setup();try{
  await importLineup(env,owner,round.id,fixtureFetch);const now=Date.now();

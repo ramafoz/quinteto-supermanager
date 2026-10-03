@@ -1,6 +1,6 @@
 export type Player = { id: string; name: string; position: string; club?:string };
-export type Lineup = { userId: string; name: string; team: string; players: Player[]; importedAt: number; scores?:Score[]|null;scoresAt?:number|null;declaredAt?:number|null;rawPoints?:number|null;netPoints?:number|null;changes?:number; penalty?:number; baselineKnown?:boolean; history?:{at:number;incoming:Player[];outgoing:Player[];penalty:number;pending?:boolean}[] };
-export type Score={id:string;valuation:number|null;points:number|null;source?:string;observedAt?:number;stale?:boolean;broker?:number|null;brokerDelta?:number|null;brokerKind?:string|null;brokerStale?:boolean;playing?:boolean};
+export type Lineup = { userId: string; name: string; team: string; players: Player[]; newPlayerIds?:string[]; importedAt: number; scores?:Score[]|null;scoresAt?:number|null;declaredAt?:number|null;rawPoints?:number|null;netPoints?:number|null;changes?:number; penalty?:number; baselineKnown?:boolean; history?:{at:number;incoming:Player[];outgoing:Player[];penalty:number;pending?:boolean}[] };
+export type Score={didNotPlay?:boolean;id:string;valuation:number|null;points:number|null;source?:string;observedAt?:number;stale?:boolean;broker?:number|null;brokerDelta?:number|null;brokerKind?:string|null;brokerStale?:boolean;playing?:boolean};
 export type Round = {rinconJourneyNumber?:number|null;rinconSeason?:string|null; acbJourneyId?:string|null;acbJourneyNumber?:number|null; id: string; label: string; lockAt: number; closedAt:number|null;endsAt:number };
 export type OverallRow={userId:string;name:string;rawPoints:number;penalty:number;netPoints:number;counted:number;pending:number;provisional:boolean};
 export function compare(lineups: Lineup[]) {

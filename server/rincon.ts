@@ -4,7 +4,7 @@ import {parseRincon} from './catalog-sources.ts';
 import type {Fetcher} from './acb.ts';
 export const LIVE_URL='https://www.rincondelmanager.com/smgr/directo.php';
 export const BROKER_URL='https://www.rincondelmanager.com/smgr/broker.php';
-export type RinconScore={id:string;points:number|null;valuation:number|null;broker:number|null;brokerOpening:number|null;brokerDelta:number|null;brokerKind:'opening'|'provisional'|'final'|null;playing:boolean;source:'rincon';sourceUrl:string;season:string;journey:number;observedAt:number;stale?:boolean;brokerStale?:boolean};
+export type RinconScore={id:string;points:number|null;valuation:number|null;broker:number|null;brokerOpening:number|null;brokerDelta:number|null;brokerKind:'opening'|'provisional'|'final'|null;playing:boolean;source:'rincon';sourceUrl:string;season:string;journey:number;observedAt:number;didNotPlay?:boolean;stale?:boolean;brokerStale?:boolean};
 const fail=()=>new AppError(502,'RINCON_SOURCE','Rincón non ofrece datos verificables desta xornada. Conservamos os datos anteriores.');
 const decode=(s:string)=>s.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#0?39;|&#x27;/gi,"'").replace(/&nbsp;/g,' ').replace(/&#(\d+);/g,(_,n)=>String.fromCodePoint(Number(n))).trim();
 const plain=(s:string)=>decode(s.replace(/<[^>]*>/g,'')).trim();

@@ -48,12 +48,3 @@ next-env.d.ts
 /outputs/
 /work/
 /revision-equivalencias/
-
-# Never publish local league data or credentials
-*.sqlite
-*.sqlite-*
-*.db
-*.db-*
-*.har
-*.key
-*.log

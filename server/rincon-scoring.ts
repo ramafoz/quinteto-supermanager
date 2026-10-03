@@ -4,6 +4,7 @@ import {CATALOG_SEASON,type CatalogPair} from '../lib/catalog.ts';
 import type {Fetcher} from './acb.ts';
 import {AppError,ensure} from './errors.ts';
 import {auditStatement} from './audit.ts';
+import {readRinconHistory} from './rincon-history.ts';
 import {readRinconScores,type RinconScore} from './rincon.ts';
 export async function refreshRinconScores(env:Runtime,user:Identity,roundId:string,number:unknown,fetcher:Fetcher=fetch,automatic=false){
  const round=await env.DB.prepare('SELECT r.*,l.owner_id FROM rounds r JOIN leagues l ON l.id=r.league_id WHERE r.id=? AND l.owner_id=?').bind(roundId,user.userId).first<{id:string;league_id:string;lock_at:number;ends_at:number;closed_at:number|null;acb_journey_number:number|null;rincon_journey_number:number|null;rincon_season:string|null}>();
@@ -26,7 +27,8 @@ export async function refreshRinconScores(env:Runtime,user:Identity,roundId:stri
  // Shared lease bounds requests across admin tabs. Failed reads never change scores.
  const claimed=await env.DB.prepare('UPDATE rounds SET rincon_fetch_at=? WHERE id=? AND (rincon_fetch_at IS NULL OR rincon_fetch_at<=?) RETURNING id').bind(at,roundId,at-(automatic?115000:10000)).first();
  if(!claimed)return {updated:0,pending:0,skipped:true};
- const scores=await readRinconScores(ids,pairs,journey,fetcher,at);
+ const ended=round.closed_at!==null||round.ends_at<=at;
+ const scores=await (ended?readRinconHistory:readRinconScores)(ids,pairs,journey,fetcher,at);
  if(automatic){const active=await env.DB.prepare('SELECT id FROM rounds WHERE id=? AND closed_at IS NULL AND ends_at>?').bind(roundId,Date.now()).first();ensure(active,'As actualizacións automáticas pararon: a xornada rematou.');}
  const revision=await env.DB.prepare('SELECT revision FROM league_catalogs WHERE league_id=? AND season=?').bind(round.league_id,CATALOG_SEASON).first<{revision:number}>();
  ensure(revision?.revision===catalog.revision,'As equivalencias cambiaron durante a consulta. Actualiza de novo.');
@@ -39,7 +41,8 @@ export async function refreshRinconScores(env:Runtime,user:Identity,roundId:stri
   const list=(JSON.parse(snapshot.players_json) as Player[]).map(p=>{
    const fresh=scores.find(s=>s.id===p.id)!;const old=previous.find(s=>s.id===p.id);let score:RinconScore={...fresh};
    if(fresh.points===null&&old?.points!=null){score={...score,points:old.points,valuation:old.valuation,stale:true};}
-   if((fresh.broker===null||fresh.brokerKind==='opening')&&old?.broker!=null&&old.source==='rincon'&&old.journey===journey){score={...score,broker:old.broker,brokerDelta:old.brokerDelta,brokerOpening:old.brokerOpening,brokerKind:old.brokerKind,brokerStale:true};}
+   if(ended&&fresh.brokerDelta!==null&&old?.source==='rincon'&&old.journey===journey&&old.brokerOpening!=null){score={...score,brokerOpening:old.brokerOpening,broker:old.brokerOpening+fresh.brokerDelta};}
+   if(!ended&&(fresh.broker===null||fresh.brokerKind==='opening')&&old?.broker!=null&&old.source==='rincon'&&old.journey===journey){score={...score,broker:old.broker,brokerDelta:old.brokerDelta,brokerOpening:old.brokerOpening,brokerKind:old.brokerKind,brokerStale:true};}
    if(score.points===null||score.stale)pending++;return score;
   });
   const ready=list.every(s=>s.points!==null&&!s.stale);const total=ready?Math.round(list.reduce((sum,s)=>sum+s.points!,0)*100)/100:null;
