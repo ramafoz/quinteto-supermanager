@@ -24,7 +24,7 @@ export async function refreshRinconScores(env:Runtime,user:Identity,roundId:stri
  ensure(missing.length===0,`Faltan ${missing.length} equivalencias confirmadas. Revísalas no catálogo da liga.`);
  ensure(new Set(pairs.map(p=>p.rincon.ref)).size===pairs.length,'Hai equivalencias repetidas. Revisa o catálogo.');
  // Optional comparison data never blocks the official results for a missing mapping.
- const outgoingIds=journey>=3?[...new Set(snapshots.flatMap(s=>(JSON.parse(s.previous_players_json??'[]') as Player[]).map(p=>p.id)))].filter(id=>!ids.includes(id)&&pairs.filter(p=>p.acb.ref===id).length===1):[];
+ const outgoingIds=journey>=2?[...new Set(snapshots.flatMap(s=>(JSON.parse(s.previous_players_json??'[]') as Player[]).map(p=>p.id)))].filter(id=>!ids.includes(id)&&pairs.filter(p=>p.acb.ref===id).length===1):[];
  const at=Date.now();
  // Shared lease bounds requests across admin tabs. Failed reads never change scores.
  const claimed=await env.DB.prepare('UPDATE rounds SET rincon_fetch_at=? WHERE id=? AND (rincon_fetch_at IS NULL OR rincon_fetch_at<=?) RETURNING id').bind(at,roundId,at-(automatic?115000:10000)).first();
@@ -52,7 +52,7 @@ export async function refreshRinconScores(env:Runtime,user:Identity,roundId:stri
    if(score.points===null||score.stale)pending++;return score;
   });
   const ready=list.every(s=>s.points!==null&&!s.stale);const total=ready?Math.round(list.reduce((sum,s)=>sum+s.points!,0)*100)/100:null;
-  if(journey>=3&&snapshot.previous_players_json&&list.length){
+  if(journey>=2&&snapshot.previous_players_json&&list.length){
    const currentIds=new Set(list.map(s=>s.id));
    const previousIds=new Set((JSON.parse(snapshot.previous_players_json) as Player[]).map(p=>p.id));
    list[0].noChangesScores=[...scores.filter(s=>ids.includes(s.id)),...outgoingScores].filter(s=>previousIds.has(s.id)&&!currentIds.has(s.id));

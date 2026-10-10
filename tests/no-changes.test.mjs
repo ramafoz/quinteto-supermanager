@@ -4,11 +4,12 @@ import {comparisonEnabled,noChangesTotals} from '../lib/no-changes.ts';
 import {livePoints} from '../lib/live-scores.ts';
 const players=ids=>ids.map(id=>({id,name:id,position:'Base'}));
 const score=(id,points,brokerDelta,extra={})=>({id,points,valuation:points,brokerDelta,source:'rincon',...extra});
-test('comparison starts at journey 3, including before source binding',()=>{
- for(const n of [1,2])assert.equal(comparisonEnabled({label:`2026/27 · J${n}`}),false);
+test('comparison starts at journey 2, including before source binding',()=>{
+ for(const n of [1])assert.equal(comparisonEnabled({label:`2026/27 · J${n}`}),false);
  assert.equal(comparisonEnabled({label:'Xornada 3'}),true);
  assert.equal(comparisonEnabled({label:'Other',acbJourneyNumber:4}),true);
- assert.equal(comparisonEnabled({label:'J3',rinconJourneyNumber:2}),false);
+ assert.equal(comparisonEnabled({label:'J3',rinconJourneyNumber:1}),false);
+ assert.equal(comparisonEnabled({label:'J2'}),true);
  assert.equal(comparisonEnabled({label:'Unknown'}),false);
 });
 test('retained and sold players give the unchanged roster; official total excludes sold metadata',()=>{

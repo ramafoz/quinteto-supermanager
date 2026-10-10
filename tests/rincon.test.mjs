@@ -47,15 +47,15 @@ test('J3 refresh includes sold players once, reuses another current team, and ke
  }finally{db.close();}
 });
 
-test('unavailable sold-player final history cannot block current official results',async()=>{
+test('J2 unavailable sold-player final history cannot block current official results',async()=>{
  const {db,env}=setup();try{
   const now=Date.now();
-  db.prepare('INSERT INTO rounds(id,league_id,label,lock_at,ends_at,closed_at) VALUES(?,?,?,?,?,?)').run('previous','l','J2',now-3000,now-2000,now-1000);
+  db.prepare('INSERT INTO rounds(id,league_id,label,lock_at,ends_at,closed_at) VALUES(?,?,?,?,?,?)').run('previous','l','J1',now-3000,now-2000,now-1000);
   db.prepare('INSERT INTO snapshots(round_id,user_id,team_id,team_name,players_json,imported_at) VALUES(?,?,?,?,?,?)').run('previous','owner','1','Test',JSON.stringify([{id:'171',name:'Sold',club:'FCB',position:'Pívot'}]),1);
   db.prepare('UPDATE league_catalogs SET confirmed_json=?').run(JSON.stringify([pair,{...pair,acb:{...pair.acb,ref:'171'},rincon:{...pair.rincon,ref:'missing-sold'}}]));
   db.exec('UPDATE rounds SET closed_at=1 WHERE id=\'r\'');
-  const historical=async url=>new Response(url.includes('/jornada/')?readFileSync(new URL('./fixtures/j1.html',import.meta.url),'utf8').replace('Jornada 1 ·','Jornada 3 ·'):url.endsWith('missing-sold')?'unavailable':readFileSync(new URL('./fixtures/tryggvi-hlinason.html',import.meta.url),'utf8').replaceAll('tryggvi-hlinason','olek-balcerowski').replace('data-sort="1"','data-sort="3"'));
-  const result=await refreshRinconScores(env,owner,'r',3,historical);
+  const historical=async url=>new Response(url.includes('/jornada/')?readFileSync(new URL('./fixtures/j1.html',import.meta.url),'utf8').replace('Jornada 1 ·','Jornada 2 ·'):url.endsWith('missing-sold')?'unavailable':readFileSync(new URL('./fixtures/tryggvi-hlinason.html',import.meta.url),'utf8').replaceAll('tryggvi-hlinason','olek-balcerowski').replace('data-sort="1"','data-sort="2"'));
+  const result=await refreshRinconScores(env,owner,'r',2,historical);
   assert.equal(result.updated,2);
   const saved=db.prepare('SELECT * FROM snapshots WHERE round_id=? AND user_id=?').get('r','owner');
   assert.equal(saved.raw_points,28.8);

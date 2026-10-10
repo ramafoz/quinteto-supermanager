@@ -23,9 +23,9 @@ Os totais completos actualízanse sen tocar os axustes manuais. Con datos ausent
 
 Publicación e migración aditiva autorizadas polo administrador o 27-09-2026.
 
-## Efecto dos cambios · desde J3
+## Efecto dos cambios · desde J2
 
-Na vista «Por equipos», os puntos ACB brutos e a variación de broker inclúen entre parénteses o resultado de manter os xogadores da plantilla anterior do mesmo equipo. J1 e J2 non presentan esta comparación. Non se simulan caixa, compravendas ou penalizacións.
+Na vista «Por equipos», os puntos ACB brutos e a variación de broker inclúen entre parénteses o resultado de manter os xogadores da plantilla anterior do mesmo equipo. J1 non presenta esta comparación. Non se simulan caixa, compravendas ou penalizacións.
 
 Reutilízanse as equivalencias e as lecturas actuais de Rincón. Durante a xornada, as dúas páxinas compartidas xa conteñen os xogadores vendidos. Tras o peche, a lectura histórica consulta tamén os vendidos, unha vez por xogador na actualización da liga. A ausencia dunha equivalencia ou resultado opcional non bloquea a puntuación oficial: a comparación mostra «—» se non se pode completar.
 

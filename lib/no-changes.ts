@@ -2,7 +2,7 @@ import type {Player,Score,Round} from './model.ts';
 
 export function comparisonEnabled(round:Round){
  const number=round.rinconJourneyNumber??round.acbJourneyNumber??Number(round.label.match(/(?:\bJ|Xornada\s+|Jornada\s+)(\d+)/i)?.[1]);
- return Number.isInteger(number)&&number>=3;
+ return Number.isInteger(number)&&number>=2;
 }
 
 // Sold-player results are optional metadata in the existing scores JSON.

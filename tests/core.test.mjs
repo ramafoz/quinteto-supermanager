@@ -232,7 +232,7 @@ test('later quota breach is recorded to preserve changes but is not classified a
  const {env,db,round}=await setup();db.prepare('UPDATE rounds SET lock_at=?').run(Date.now()-1000);await importLineup(env,owner,round.id,fixtureFetch,true);await importLineup(env,owner,round.id,async()=>Response.json(rawPlayers.map((p,i)=>i<4?{...p,idPlayer:100+i,nameTeam:'Otro club'}:p)));await action(env,owner,'close-round',{roundId:round.id});await action(env,owner,'score',{roundId:round.id,userId:owner.userId,points:203});const lineup=(await state(env,owner)).lineups[0];assert.equal(lineup.quota.status,'invalid');assert.equal(lineup.netPoints,null);assert.equal(lineup.penalty,0);db.close();
 });
 
-test('no-changes totals are exposed from J3 only, for the same team, with pre-round privacy',async()=>{
+test('no-changes totals are exposed from J2 onward, for the same team, with pre-round privacy',async()=>{
  const {env,db,round}=await setup();try{
   await importLineup(env,owner,round.id,fixtureFetch);
   const now=Date.now();db.prepare('UPDATE rounds SET lock_at=?,ends_at=?,closed_at=? WHERE id=?').run(now-30000,now-20000,now-10000,round.id);
@@ -245,6 +245,8 @@ test('no-changes totals are exposed from J3 only, for the same team, with pre-ro
   assert.equal((await state(env,friend,next.id)).lineups.length,0);
   assert.equal((await state(env,owner,round.id)).lineups[0].noChanges,null);
   db.prepare('UPDATE rounds SET label=? WHERE id=?').run('J2',next.id);
+  assert.deepEqual((await state(env,owner,next.id)).lineups[0].noChanges,{points:85,brokerDelta:400});
+  db.prepare('UPDATE rounds SET label=? WHERE id=?').run('J1',next.id);
   assert.equal((await state(env,owner,next.id)).lineups[0].noChanges,null);
   db.prepare('UPDATE rounds SET label=? WHERE id=?').run('J3',next.id);
   db.prepare('UPDATE snapshots SET team_id=? WHERE round_id=?').run('different-team',next.id);
