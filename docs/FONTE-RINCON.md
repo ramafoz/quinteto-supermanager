@@ -22,3 +22,11 @@ Os totais completos actualízanse sen tocar os axustes manuais. Con datos ausent
 61 probas superadas, comprobación de tipos e compilación. Inclúe fonte incorrecta, xornada distinta, datos ausentes, valores negativos/cero, permisos, actualización simultánea de cadros/equivalencias, parada automática e conservación dos axustes.
 
 Publicación e migración aditiva autorizadas polo administrador o 27-09-2026.
+
+## Efecto dos cambios · desde J3
+
+Na vista «Por equipos», os puntos ACB brutos e a variación de broker inclúen entre parénteses o resultado de manter os xogadores da plantilla anterior do mesmo equipo. J1 e J2 non presentan esta comparación. Non se simulan caixa, compravendas ou penalizacións.
+
+Reutilízanse as equivalencias e as lecturas actuais de Rincón. Durante a xornada, as dúas páxinas compartidas xa conteñen os xogadores vendidos. Tras o peche, a lectura histórica consulta tamén os vendidos, unha vez por xogador na actualización da liga. A ausencia dunha equivalencia ou resultado opcional non bloquea a puntuación oficial: a comparación mostra «—» se non se pode completar.
+
+Os resultados dos vendidos gárdanse como metadatos `noChangesScores` do primeiro elemento do JSON de puntuacións existente. Non se engaden á lista de puntuacións oficiais, nin se modifica o esquema da base de datos. Isto permite manter a comparación entre actualizacións sen alterar totais, clasificacións nin axustes manuais.

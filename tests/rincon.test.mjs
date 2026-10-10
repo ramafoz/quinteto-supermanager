@@ -17,3 +17,48 @@ test('source failures and absent score preserve existing values instead of repla
 test('owner, start time, mapping and round binding are enforced before fetching',async()=>{const {db,env}=setup();try{let calls=0;const noFetch=async()=>{calls++;throw Error('unexpected');};await assert.rejects(refreshRinconScores(env,friend,'r',1,noFetch));db.exec('UPDATE rounds SET lock_at=9999999999999');await assert.rejects(refreshRinconScores(env,owner,'r',1,noFetch));db.exec('UPDATE rounds SET lock_at=1,acb_journey_number=2');await assert.rejects(refreshRinconScores(env,owner,'r',1,noFetch));db.exec("UPDATE rounds SET acb_journey_number=NULL;UPDATE league_catalogs SET confirmed_json='[]'");await assert.rejects(refreshRinconScores(env,owner,'r',1,noFetch));assert.equal(calls,0);}finally{db.close();}});
 test('automatic refresh stops after close, including a close during fetch; manual final update allowed',async()=>{const {db,env}=setup();try{let calls=0;const fetcher=async(...a)=>{calls++;db.exec('UPDATE rounds SET closed_at=1');return fixture()(...a);};await assert.rejects(refreshRinconScores(env,owner,'r',1,fetcher,true));assert.equal(db.prepare('SELECT raw_points FROM snapshots').get().raw_points,203);calls=0;await assert.rejects(refreshRinconScores(env,owner,'r',1,fetcher,true));assert.equal(calls,0);release(db);const historical=async url=>new Response(url.includes('/jornada/')?readFileSync(new URL('./fixtures/j1.html',import.meta.url),'utf8'):readFileSync(new URL('./fixtures/tryggvi-hlinason.html',import.meta.url),'utf8').replaceAll('tryggvi-hlinason','olek-balcerowski'));const r=await refreshRinconScores(env,owner,'r',1,historical);assert.equal(r.updated,2);}finally{db.close();}});
 test('roster import or mapping edits during fetch cannot overwrite newer state',async()=>{const {db,env}=setup();try{let first=true;const changeRoster=async(...a)=>{if(first){first=false;db.exec("UPDATE snapshots SET imported_at=2 WHERE user_id='owner'");}return fixture()(...a);};const r=await refreshRinconScores(env,owner,'r',1,changeRoster);assert.equal(r.updated,1);assert.equal(db.prepare("SELECT raw_points FROM snapshots WHERE user_id='owner'").get().raw_points,203);release(db);first=true;const changeMapping=async(...a)=>{if(first){first=false;db.exec('UPDATE league_catalogs SET revision=2');}return fixture()(...a);};await assert.rejects(refreshRinconScores(env,owner,'r',1,changeMapping));}finally{db.close();}});
+
+test('J3 refresh includes sold players once, reuses another current team, and keeps official totals separate',async()=>{
+ const {db,env}=setup();try{
+  const {noChangesTotals}=await import('../lib/no-changes.ts');
+  const now=Date.now();
+  db.prepare('INSERT INTO rounds(id,league_id,label,lock_at,ends_at,closed_at) VALUES(?,?,?,?,?,?)').run('previous','l','J2',now-3000,now-2000,now-1000);
+  const oldPlayers=JSON.stringify([{id:'171',name:'Test 1',club:'FCB',position:'Pívot'},{id:'172',name:'Test 2',club:'FCB',position:'Pívot'}]);
+  for(const user of ['owner','friend'])db.prepare('INSERT INTO snapshots(round_id,user_id,team_id,team_name,players_json,imported_at) VALUES(?,?,?,?,?,?)').run('previous',user,'1','Test',oldPlayers,1);
+  db.prepare('UPDATE snapshots SET players_json=? WHERE round_id=? AND user_id=?').run(JSON.stringify([{id:'172',name:'Test 2',club:'FCB',position:'Pívot'}]),'r','friend');
+  const pairs=[pair,...[1,2].map(i=>({...pair,acb:{...pair.acb,ref:String(170+i)},rincon:{...pair.rincon,ref:`test-${i}`,name:`Test ${i}`,shortName:`T. ${i}`}}))];
+  db.prepare('UPDATE league_catalogs SET confirmed_json=?').run(JSON.stringify(pairs));
+  const rows=[makeLive({journey:3}),makeLive({journey:3,name:'Test 1',points:-5,delta:-10}),makeLive({journey:3,name:'Test 2',points:20,delta:100})].map(s=>s.match(/<tr[\s\S]*<\/tr>/)[0]).join('');
+  const live=makeLive({journey:3}).replace(/<tr[\s\S]*<\/tr>/,rows).replace('1 jugadores','3 jugadores');
+  let calls=0;await refreshRinconScores(env,owner,'r',3,async(...args)=>{calls++;return fixture(live,makeBroker(3))(...args);});
+  assert.equal(calls,2);
+  for(const user of ['owner','friend']){
+   const saved=db.prepare('SELECT * FROM snapshots WHERE round_id=? AND user_id=?').get('r',user),scores=JSON.parse(saved.scores_json);
+   assert.equal(saved.raw_points,user==='owner'?36:20);
+   assert.equal(scores.length,1);
+   assert.deepEqual(noChangesTotals(JSON.parse(oldPlayers),scores),{points:15,brokerDelta:90});
+  }
+  // A sold player without a confirmed mapping must not block official refresh.
+  release(db);db.prepare('UPDATE league_catalogs SET confirmed_json=?').run(JSON.stringify(pairs.filter(p=>p.acb.ref!=='171')));
+  await refreshRinconScores(env,owner,'r',3,fixture(live,makeBroker(3)));
+  const saved=db.prepare('SELECT * FROM snapshots WHERE round_id=? AND user_id=?').get('r','owner');
+  assert.equal(saved.raw_points,36);
+  assert.deepEqual(noChangesTotals(JSON.parse(oldPlayers),JSON.parse(saved.scores_json)),{points:null,brokerDelta:null});
+ }finally{db.close();}
+});
+
+test('unavailable sold-player final history cannot block current official results',async()=>{
+ const {db,env}=setup();try{
+  const now=Date.now();
+  db.prepare('INSERT INTO rounds(id,league_id,label,lock_at,ends_at,closed_at) VALUES(?,?,?,?,?,?)').run('previous','l','J2',now-3000,now-2000,now-1000);
+  db.prepare('INSERT INTO snapshots(round_id,user_id,team_id,team_name,players_json,imported_at) VALUES(?,?,?,?,?,?)').run('previous','owner','1','Test',JSON.stringify([{id:'171',name:'Sold',club:'FCB',position:'Pívot'}]),1);
+  db.prepare('UPDATE league_catalogs SET confirmed_json=?').run(JSON.stringify([pair,{...pair,acb:{...pair.acb,ref:'171'},rincon:{...pair.rincon,ref:'missing-sold'}}]));
+  db.exec('UPDATE rounds SET closed_at=1 WHERE id=\'r\'');
+  const historical=async url=>new Response(url.includes('/jornada/')?readFileSync(new URL('./fixtures/j1.html',import.meta.url),'utf8').replace('Jornada 1 ·','Jornada 3 ·'):url.endsWith('missing-sold')?'unavailable':readFileSync(new URL('./fixtures/tryggvi-hlinason.html',import.meta.url),'utf8').replaceAll('tryggvi-hlinason','olek-balcerowski').replace('data-sort="1"','data-sort="3"'));
+  const result=await refreshRinconScores(env,owner,'r',3,historical);
+  assert.equal(result.updated,2);
+  const saved=db.prepare('SELECT * FROM snapshots WHERE round_id=? AND user_id=?').get('r','owner');
+  assert.equal(saved.raw_points,28.8);
+  assert.deepEqual(JSON.parse(saved.scores_json)[0].noChangesScores,[]);
+ }finally{db.close();}
+});

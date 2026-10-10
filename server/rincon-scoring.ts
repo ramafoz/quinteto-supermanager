@@ -17,18 +17,24 @@ export async function refreshRinconScores(env:Runtime,user:Identity,roundId:stri
  const catalog=await env.DB.prepare('SELECT revision,confirmed_json FROM league_catalogs WHERE league_id=? AND season=?').bind(round.league_id,CATALOG_SEASON).first<{revision:number;confirmed_json:string}>();
  ensure(catalog,'Actualiza e revisa primeiro as equivalencias dos xogadores da liga.');
  const pairs=JSON.parse(catalog.confirmed_json) as CatalogPair[];
- const snapshots=(await env.DB.prepare('SELECT s.user_id,s.players_json,s.imported_at,s.scores_json FROM snapshots s JOIN members m ON m.user_id=s.user_id WHERE s.round_id=? AND m.league_id=?').bind(roundId,round.league_id).all()).results as {user_id:string;players_json:string;imported_at:number;scores_json:string|null}[];
+ const snapshots=(await env.DB.prepare('SELECT s.user_id,s.players_json,s.imported_at,s.scores_json,(SELECT previous.players_json FROM snapshots previous JOIN rounds pr ON pr.id=previous.round_id WHERE previous.user_id=s.user_id AND previous.team_id=s.team_id AND pr.league_id=r.league_id AND pr.lock_at<r.lock_at ORDER BY pr.lock_at DESC LIMIT 1) AS previous_players_json FROM snapshots s JOIN rounds r ON r.id=s.round_id JOIN members m ON m.user_id=s.user_id WHERE s.round_id=? AND m.league_id=?').bind(roundId,round.league_id).all()).results as {user_id:string;players_json:string;imported_at:number;scores_json:string|null;previous_players_json:string|null}[];
  ensure(snapshots.length>0,'Aínda non hai equipos nesta xornada.');
  const ids=[...new Set(snapshots.flatMap(s=>(JSON.parse(s.players_json) as Player[]).map(p=>p.id)))];
  const missing=ids.filter(id=>pairs.filter(p=>p.acb.ref===id).length!==1);
  ensure(missing.length===0,`Faltan ${missing.length} equivalencias confirmadas. Revísalas no catálogo da liga.`);
  ensure(new Set(pairs.map(p=>p.rincon.ref)).size===pairs.length,'Hai equivalencias repetidas. Revisa o catálogo.');
+ // Optional comparison data never blocks the official results for a missing mapping.
+ const outgoingIds=journey>=3?[...new Set(snapshots.flatMap(s=>(JSON.parse(s.previous_players_json??'[]') as Player[]).map(p=>p.id)))].filter(id=>!ids.includes(id)&&pairs.filter(p=>p.acb.ref===id).length===1):[];
  const at=Date.now();
  // Shared lease bounds requests across admin tabs. Failed reads never change scores.
  const claimed=await env.DB.prepare('UPDATE rounds SET rincon_fetch_at=? WHERE id=? AND (rincon_fetch_at IS NULL OR rincon_fetch_at<=?) RETURNING id').bind(at,roundId,at-(automatic?115000:10000)).first();
  if(!claimed)return {updated:0,pending:0,skipped:true};
  const ended=round.closed_at!==null||round.ends_at<=at;
- const scores=await (ended?readRinconHistory:readRinconScores)(ids,pairs,journey,fetcher,at);
+ const scores=await (ended?readRinconHistory:readRinconScores)(ended?ids:[...ids,...outgoingIds],pairs,journey,fetcher,at);
+ // Live pages already contain everyone. Final individual reads are best-effort
+ // for sold players, so a missing history cannot interrupt official scoring.
+ let outgoingScores:RinconScore[]=scores.filter(s=>outgoingIds.includes(s.id));
+ if(ended&&outgoingIds.length){try{outgoingScores=await readRinconHistory(outgoingIds,pairs,journey,fetcher,at);}catch{outgoingScores=[];}}
  if(automatic){const active=await env.DB.prepare('SELECT id FROM rounds WHERE id=? AND closed_at IS NULL AND ends_at>?').bind(roundId,Date.now()).first();ensure(active,'As actualizacións automáticas pararon: a xornada rematou.');}
  const revision=await env.DB.prepare('SELECT revision FROM league_catalogs WHERE league_id=? AND season=?').bind(round.league_id,CATALOG_SEASON).first<{revision:number}>();
  ensure(revision?.revision===catalog.revision,'As equivalencias cambiaron durante a consulta. Actualiza de novo.');
@@ -46,6 +52,11 @@ export async function refreshRinconScores(env:Runtime,user:Identity,roundId:stri
    if(score.points===null||score.stale)pending++;return score;
   });
   const ready=list.every(s=>s.points!==null&&!s.stale);const total=ready?Math.round(list.reduce((sum,s)=>sum+s.points!,0)*100)/100:null;
+  if(journey>=3&&snapshot.previous_players_json&&list.length){
+   const currentIds=new Set(list.map(s=>s.id));
+   const previousIds=new Set((JSON.parse(snapshot.previous_players_json) as Player[]).map(p=>p.id));
+   list[0].noChangesScores=[...scores.filter(s=>ids.includes(s.id)),...outgoingScores].filter(s=>previousIds.has(s.id)&&!currentIds.has(s.id));
+  }
   statements.push(env.DB.prepare(`UPDATE snapshots SET scores_json=?,scores_at=?,raw_points=CASE WHEN ?=1 THEN ? ELSE raw_points END WHERE round_id=? AND user_id=? AND imported_at=? AND players_json=? AND (scores_at IS NULL OR scores_at<=?) AND ${guard}`).bind(JSON.stringify(list),at,ready?1:0,total,roundId,snapshot.user_id,snapshot.imported_at,snapshot.players_json,at,...guardArgs));
  }
  statements.push(auditStatement(env,user.userId,`Consulta de Rincón da xornada ${journey}: ${ids.length} xogadores, puntos SM e broker.`));
