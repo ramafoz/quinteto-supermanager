@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {parsePlayerHistory,verifyFinishedJourney,readRinconHistory} from '../server/rincon-history.ts';
+import {parsePlayerHistory,verifyFinishedJourney,readRinconHistory,excludedFromSuperManager} from '../server/rincon-history.ts';
 const fixture=name=>readFileSync(new URL(`./fixtures/${name}.html`,import.meta.url),'utf8');
 test('real historical rows give SM bonus and broker delta, independently of the current market',()=>{
  assert.deepEqual(parsePlayerHistory(fixture('tryggvi-hlinason'),'tryggvi-hlinason',1),{points:28.8,valuation:24,delta:97500,didNotPlay:false});
@@ -20,7 +20,7 @@ test('closed round reader uses selected journey and player history, never curren
  assert.equal(score.points,0);assert.equal(score.brokerDelta,0);assert.equal(score.brokerKind,'final');assert.equal(score.observedAt,123);assert.equal(urls.length,2);assert.equal(score.broker,null);
 });
 
-test('real J2 with eight final games accepts Hlinason results without treating postponed clubs as unplayed',async()=>{
+test('real J2 with eight final games accepts Hlinason and excludes JOV–AND from SuperManager',async()=>{
  const journey=fixture('j2-postponed');const finished=verifyFinishedJourney(journey,2);
  assert.equal(finished.size,16);assert.equal(finished.has('JOV'),false);assert.equal(finished.has('BLB'),true);
  assert.deepEqual(parsePlayerHistory(fixture('hlinason-j2'),'tryggvi-hlinason',2),{points:23,valuation:23,delta:112125,didNotPlay:false});
@@ -32,11 +32,22 @@ test('real J2 with eight final games accepts Hlinason results without treating p
  const pairs=[{acb:{ref:'played'},rincon:{ref:'tryggvi-hlinason',club:'BLB'}},{acb:{ref:'postponed'},rincon:{ref:'emir-sulejmanovic',club:'JOV'}},{acb:{ref:'injured'},rincon:{ref:'emir-sulejmanovic',club:'ZAR'}}];
  const scores=await readRinconHistory(['played','postponed','injured'],pairs,2,async url=>new Response(url.includes('/jornada/')?journey:url.endsWith('tryggvi-hlinason')?fixture('hlinason-j2'):absent));
  assert.equal(scores[0].points,23);assert.equal(scores[0].brokerDelta,112125);
- assert.equal(scores[1].points,null);assert.equal(scores[1].brokerDelta,null);assert.equal(scores[1].brokerKind,null);assert.equal(scores[1].didNotPlay,false);
+ assert.equal(scores[1].points,0);assert.equal(scores[1].brokerDelta,0);assert.equal(scores[1].brokerKind,'final');assert.equal(scores[1].didNotPlay,true);
  assert.equal(scores[2].points,0);assert.equal(scores[2].brokerDelta,0);assert.equal(scores[2].didNotPlay,true);
  assert.throws(()=>verifyFinishedJourney(journey.replace('Jornada 2','Jornada 1'),2));
  assert.throws(()=>verifyFinishedJourney(journey.replace('75-80','0-0'),2));
  assert.throws(()=>verifyFinishedJourney(journey+'<a aria-label="Acta del partido UNI 75-80 CAN">',2));
+});
+
+test('J2 exclusion applies to both clubs, even after ACB history records the postponed game',async()=>{
+ assert.equal(excludedFromSuperManager(2,'JOV'),true);assert.equal(excludedFromSuperManager(2,'AND'),true);
+ assert.equal(excludedFromSuperManager(1,'JOV'),false);assert.equal(excludedFromSuperManager(3,'AND'),false);
+ assert.equal(excludedFromSuperManager(2,'FCB'),false);assert.equal(excludedFromSuperManager(2,undefined),false);
+ const urls=[];
+ const pairs=['JOV','AND'].map(club=>({acb:{ref:club},rincon:{ref:'emir-sulejmanovic',club}}));
+ const scores=await readRinconHistory(['JOV','AND'],pairs,2,async url=>{urls.push(url);return new Response(url.includes('/jornada/')?fixture('j2-postponed'):fixture('hlinason-j2'));});
+ assert.equal(urls.length,1);assert.equal(scores.length,2);
+ for(const score of scores){assert.equal(score.points,0);assert.equal(score.brokerDelta,0);assert.equal(score.brokerKind,'final');}
 });
 
 test('real Juan Núñez J2 row is unplayed even though the opponent is populated',async()=>{

@@ -33,6 +33,8 @@ Os resultados dos vendidos gárdanse como metadatos `noChangesScores` do primeir
 
 ### Partidos aprazados
 
-Unha xornada pechada na liga pode ter menos de nove partidos rematados na ACB. A lectura histórica valida os resultados dispoñibles e consulta as filas individuais. Unha fila baleira dun club sen partido final verificado queda pendente; só se interpreta como non participación (cero puntos e broker) cando o partido dese club está rematado. Oito partidos finais, como en J2, non bloquean os resultados dos demais xogadores.
+Unha xornada pechada na liga pode ter menos de nove partidos rematados na ACB. A lectura histórica valida os resultados dispoñibles e consulta as filas individuais. O Joventut–Andorra aprazado da J2 de 2026/27 non conta para SuperManager: os xogadores de JOV e AND reciben cero puntos e cero variación de broker, tanto no equipo actual como no cálculo «sen cambios». A exclusión mantense aínda que a ficha ACB incorpore máis adiante o partido disputado. Non se aplica a outras xornadas ou clubs.
+
+Fóra desa exclusión explícita, unha fila baleira dun club sen partido final verificado queda pendente; só se interpreta como non participación cando o partido dese club está rematado. Oito partidos finais, como en J2, non bloquean os resultados dos demais xogadores.
 
 As filas explícitas sen minutos nin estatísticas poden conservar o rival (por exemplo, Juan Núñez en J2). O rival informado non impide recoñecer a non participación cando o partido do club está rematado. Os erros de lectura dunha ficha identifican agora o xogador e a xornada para facilitar o diagnóstico.

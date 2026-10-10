@@ -63,7 +63,7 @@ test('J2 unavailable sold-player final history cannot block current official res
  }finally{db.close();}
 });
 
-test('real J2 postponed-game source updates played teams and preserves missing results as stale',async()=>{
+test('real J2 source replaces prior postponed-player results with SuperManager zeros',async()=>{
  const {db,env}=setup();try{
   db.exec('UPDATE rounds SET closed_at=1 WHERE id=\'r\'');
   const postponedPair={...pair,acb:{...pair.acb,ref:'171'},rincon:{...pair.rincon,ref:'emir-sulejmanovic',club:'JOV'}};
@@ -71,10 +71,10 @@ test('real J2 postponed-game source updates played teams and preserves missing r
   db.prepare('UPDATE snapshots SET players_json=?,scores_json=?,scores_at=? WHERE user_id=?').run(JSON.stringify([{id:'171',name:'Postponed',club:'JOV',position:'Pívot'}]),JSON.stringify([{id:'171',points:10,valuation:10,brokerDelta:100,broker:350100,brokerOpening:350000,brokerKind:'final',source:'rincon',journey:2}]),1,'friend');
   const fixture=name=>readFileSync(new URL('./fixtures/'+name+'.html',import.meta.url),'utf8');
   const r=await refreshRinconScores(env,owner,'r',2,async url=>new Response(url.includes('/jornada/')?fixture('j2-postponed'):url.endsWith('olek-balcerowski')?fixture('hlinason-j2').replaceAll('tryggvi-hlinason','olek-balcerowski'):fixture('emir-sulejmanovic').replace('data-sort="1"','data-sort="2"')));
-  assert.equal(r.updated,2);assert.equal(r.pending,1);
+  assert.equal(r.updated,2);assert.equal(r.pending,0);
   assert.equal(db.prepare('SELECT raw_points FROM snapshots WHERE user_id=?').get('owner').raw_points,23);
   const saved=db.prepare('SELECT * FROM snapshots WHERE user_id=?').get('friend');
-  assert.equal(saved.raw_points,203);const score=JSON.parse(saved.scores_json)[0];
-  assert.equal(score.points,10);assert.equal(score.stale,true);assert.equal(score.brokerDelta,null);
+  assert.equal(saved.raw_points,0);const score=JSON.parse(saved.scores_json)[0];
+  assert.equal(score.points,0);assert.equal(!!score.stale,false);assert.equal(score.brokerDelta,0);
  }finally{db.close();}
 });
