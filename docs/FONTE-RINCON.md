@@ -30,3 +30,7 @@ Na vista «Por equipos», os puntos ACB brutos e a variación de broker inclúen
 Reutilízanse as equivalencias e as lecturas actuais de Rincón. Durante a xornada, as dúas páxinas compartidas xa conteñen os xogadores vendidos. Tras o peche, a lectura histórica consulta tamén os vendidos, unha vez por xogador na actualización da liga. A ausencia dunha equivalencia ou resultado opcional non bloquea a puntuación oficial: a comparación mostra «—» se non se pode completar.
 
 Os resultados dos vendidos gárdanse como metadatos `noChangesScores` do primeiro elemento do JSON de puntuacións existente. Non se engaden á lista de puntuacións oficiais, nin se modifica o esquema da base de datos. Isto permite manter a comparación entre actualizacións sen alterar totais, clasificacións nin axustes manuais.
+
+### Partidos aprazados
+
+Unha xornada pechada na liga pode ter menos de nove partidos rematados na ACB. A lectura histórica valida os resultados dispoñibles e consulta as filas individuais. Unha fila baleira dun club sen partido final verificado queda pendente; só se interpreta como non participación (cero puntos e broker) cando o partido dese club está rematado. Oito partidos finais, como en J2, non bloquean os resultados dos demais xogadores.
