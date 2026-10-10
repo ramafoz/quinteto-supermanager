@@ -26,7 +26,9 @@ export function parsePlayerHistory(html:string,slug:string,journey:number,matchF
  if(matches.length===0&&!matchFinished)return pending;
  if(matches.length!==1)throw fail();
  const c=matches[0];
- const absent=plain(c[4][2])==='—'&&plain(c[10][2])==='—'&&[5,6,7,8,9,11].every(i=>plain(c[i][2])==='')&&c[1][1].includes('data-sort=""');
+ // Injured players can have a known opponent but no minutes/statistics.
+ // A blank rival is not required to recognize an explicit unplayed row.
+ const absent=plain(c[4][2])==='—'&&plain(c[10][2])==='—'&&[5,6,7,8,9,11].every(i=>plain(c[i][2])==='')&&plain(c[2][2])==='—'&&plain(c[3][2])==='';
  if(absent)return matchFinished?{points:0,valuation:0,delta:0,didNotPlay:true}:pending;
  const value=(i:number)=>{const s=c[i][1].match(/data-sort="([-+]?\d+(?:\.\d+)?)"/)?.[1];if(s===undefined)throw fail();return Number(s);};
  const points=value(10),valuation=value(9),delta=value(11);
@@ -42,7 +44,9 @@ export async function readRinconHistory(ids:string[],pairs:CatalogPair[],journey
    const pair=pairs.find(p=>p.acb.ref===id);if(!pair||!/^[a-z0-9-]+$/.test(pair.rincon.ref))throw fail();
    const url=`https://www.rincondelmanager.com/smgr/jugador/${pair.rincon.ref}`;
    const matchFinished=finishedClubs.size===18||finishedClubs.has(pair.rincon.club??'');
-   const row=parsePlayerHistory(await readRinconPage(url,fetcher),pair.rincon.ref,journey,matchFinished);
+   let row:ReturnType<typeof parsePlayerHistory>;
+   try{row=parsePlayerHistory(await readRinconPage(url,fetcher),pair.rincon.ref,journey,matchFinished);}
+   catch{throw new AppError(502,'RINCON_HISTORY',`Non se puideron verificar os resultados de ${pair.rincon.name} na xornada ${journey}. Conservamos os datos anteriores.`);}
    return {id,points:row.points,valuation:row.valuation,broker:null,brokerOpening:null,brokerDelta:row.delta,brokerKind:row.delta===null?null:'final',didNotPlay:row.didNotPlay,playing:false,source:'rincon',sourceUrl:url,season:CATALOG_SEASON,journey,observedAt:at} satisfies RinconScore;
   })));
  }

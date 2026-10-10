@@ -38,3 +38,17 @@ test('real J2 with eight final games accepts Hlinason results without treating p
  assert.throws(()=>verifyFinishedJourney(journey.replace('75-80','0-0'),2));
  assert.throws(()=>verifyFinishedJourney(journey+'<a aria-label="Acta del partido UNI 75-80 CAN">',2));
 });
+
+test('real Juan Núñez J2 row is unplayed even though the opponent is populated',async()=>{
+ const html=fixture('juan-nunez-j2');
+ assert.deepEqual(parsePlayerHistory(html,'juan-nunez',2,true),{points:0,valuation:0,delta:0,didNotPlay:true});
+ assert.deepEqual(parsePlayerHistory(html,'juan-nunez',2,false),{points:null,valuation:null,delta:null,didNotPlay:false});
+ assert.deepEqual(parsePlayerHistory(html,'juan-nunez',1,true),{points:15.6,valuation:13,delta:30000,didNotPlay:false});
+ const scores=await readRinconHistory(['182'],[{acb:{ref:'182'},rincon:{ref:'juan-nunez',name:'Juan Núñez',club:'FCB'}}],2,async url=>new Response(url.includes('/jornada/')?fixture('j2-postponed'):html));
+ assert.equal(scores[0].points,0);assert.equal(scores[0].brokerDelta,0);assert.equal(scores[0].didNotPlay,true);
+ // Missing data on a played row still fails instead of masquerading as unplayed.
+ assert.throws(()=>parsePlayerHistory(html.replace('data-sort="15.6"','data-sort="bad"'),'juan-nunez',1));
+});
+test('historical source failures identify the player and journey',async()=>{
+ await assert.rejects(readRinconHistory(['182'],[{acb:{ref:'182'},rincon:{ref:'juan-nunez',name:'Juan Núñez',club:'FCB'}}],2,async url=>new Response(url.includes('/jornada/')?fixture('j2-postponed'):'bad profile')),/Juan Núñez.*xornada 2/);
+});
