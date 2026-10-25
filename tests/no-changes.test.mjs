@@ -14,14 +14,14 @@ test('comparison starts at journey 2, including before source binding',()=>{
 });
 test('retained and sold players give the unchanged roster; official total excludes sold metadata',()=>{
  const scores=[score('new',30,50000,{noChangesScores:[score('sold',-5,-20000)]}),score('kept',12.6,0)];
- assert.deepEqual(noChangesTotals(players(['sold','kept']),scores),{points:7.6,brokerDelta:-20000});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['sold','kept']),scores),{points:7.6,brokerDelta:-20000});
  assert.equal(livePoints({players:players(['new','kept']),scores}),42.6);
- assert.deepEqual(noChangesTotals(players(['new','kept']),scores),{points:42.6,brokerDelta:50000});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['new','kept']),scores),{points:42.6,brokerDelta:50000});
 });
 test('missing and stale results are unavailable independently for points and broker; zero is valid',()=>{
- assert.deepEqual(noChangesTotals(players(['sold']),[score('new',10,10)]),{points:null,brokerDelta:null});
- assert.deepEqual(noChangesTotals(players(['x']),[score('x',0,0)]),{points:0,brokerDelta:0});
- assert.deepEqual(noChangesTotals(players(['x']),[score('x',5,-10,{stale:true})]),{points:null,brokerDelta:-10});
- assert.deepEqual(noChangesTotals(players(['x']),[score('x',5,-10,{brokerStale:true})]),{points:5,brokerDelta:null});
- assert.deepEqual(noChangesTotals(players(['x']),[score('x',null,0)]),{points:null,brokerDelta:0});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['sold']),[score('new',10,10)]),{points:null,brokerDelta:null});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['x']),[score('x',0,0)]),{points:0,brokerDelta:0});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['x']),[score('x',5,-10,{stale:true})]),{points:null,brokerDelta:-10});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['x']),[score('x',5,-10,{brokerStale:true})]),{points:5,brokerDelta:null});
+ assert.partialDeepStrictEqual(noChangesTotals(players(['x']),[score('x',null,0)]),{points:null,brokerDelta:0});
 });

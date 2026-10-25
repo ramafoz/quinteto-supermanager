@@ -1,8 +1,12 @@
 import type {Lineup,Player} from './model.ts';
+import {pointsTotal,finite} from './score-data.ts';
+export function livePointsStatus(team:Lineup){return pointsTotal(team.players,team.scores,team.scoreContext);}
 export function livePoints(team:Lineup){
- if(team.rawPoints!=null&&(!team.scores||team.scoresAt===null||team.scores.every(s=>s.points!==null&&!s.stale)))return team.rawPoints;
- const published=team.scores?.filter(s=>s.points!==null);
- return published?.length?Math.round(published.reduce((sum,s)=>sum+s.points!,0)*100)/100:team.scores?null:team.rawPoints??null;
+ // A manual total deliberately has scoresAt=null; do not reinterpret it as a
+ // stale automatic cache. Otherwise a partial sum must never fall back to rawPoints.
+ if(!team.scores||team.scoresAt===null)return finite(team.rawPoints)?team.rawPoints:null;
+ const total=livePointsStatus(team);
+ return total.count===total.expected&&total.count>0&&finite(team.rawPoints)?team.rawPoints:total.value;
 }
 export function liveNet(team:Lineup){const points=livePoints(team);return points===null?null:Math.round((points-(team.penalty??0))*100)/100;}
 export function sortPlayers<T extends Player & {owners?:string[]}>(players:T[],by='position',direction='asc'){

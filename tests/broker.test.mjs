@@ -6,7 +6,7 @@ import {state} from '../server/service.ts';
 const players=[{id:'1',name:'One',club:'Río Breogán',position:'Xogador'},{id:'2',name:'Two',club:'Leyma Coruña',position:'Alero'}];
 const members=[{id:'u',name:'User'}];
 const round=(id,start,end,number)=>({id,label:id,lockAt:start,endsAt:end,closedAt:null,rinconJourneyNumber:number,rinconSeason:'2026/27'});
-const snapshot=(id,deltas,extra={})=>({roundId:id,userId:'u',players,scores:deltas.map((d,i)=>({id:String(i+1),source:'rincon',brokerDelta:d,brokerKind:'final',...extra}))});
+const snapshot=(id,deltas,extra={})=>({roundId:id,userId:'u',players,scores:deltas.map((d,i)=>({id:String(i+1),source:'rincon',journey:id==='r1'||id==='copy'?1:id==='r2'?2:3,season:'2026/27',brokerDelta:d,brokerKind:'final',...extra}))});
 test('broker starts at 5M, sums signed final-roster deltas once, carries previous rounds, and excludes future/live from overall',()=>{
  const rounds=[round('r1',1,10,1),round('r2',11,30,2),round('future',40,50,3)];
  const snapshots=[snapshot('r1',[100,-20]),snapshot('r2',[-40,10]),snapshot('future',[99999,99999])];

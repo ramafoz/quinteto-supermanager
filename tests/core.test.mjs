@@ -8,6 +8,8 @@ import {encrypt,decrypt} from '../server/crypto.ts';
 import {compare,overlap} from '../lib/model.ts';
 import {quota,galicianClub} from '../lib/quota.ts';
 import {normalizeScore} from '../server/acb.ts';
+import {mergeScore} from '../lib/score-data.ts';
+import {livePoints,liveNet,livePointsStatus} from '../lib/live-scores.ts';
 const key='a1'.repeat(32);
 const owner={userId:'owner',displayName:'Owner'};
 const friend={userId:'friend',displayName:'Friend'};
@@ -107,7 +109,7 @@ test('ACB scores match exact journey, persist per-player points including victor
  await assert.rejects(action(env,friend,'refresh-scores',{roundId:round.id,journeyId:'123'},scoreFetch),{code:'OWNER_ONLY'});
  const result=await action(env,owner,'refresh-scores',{roundId:round.id,journeyId:'123'},scoreFetch);assert.equal(result.updated,1);let row=(await state(env,owner)).lineups[0];assert.equal(row.rawPoints,120);assert.equal(row.scores.length,10);assert.equal(row.scores[0].valuation,10);assert.equal(row.scores[0].points,12);
  const before=db.prepare('SELECT raw_points,scores_json,scores_at FROM snapshots').get();await assert.rejects(action(env,owner,'refresh-scores',{roundId:round.id},async url=>url.includes('/journey/')?scoreFetch(url):new Response('unavailable',{status:500})));assert.deepEqual(db.prepare('SELECT raw_points,scores_json,scores_at FROM snapshots').get(),before);
- await action(env,owner,'refresh-scores',{roundId:round.id},async url=>url.includes('/journey/')?scoreFetch(url):Response.json({playerStats:[]}));row=(await state(env,owner)).lineups[0];assert.equal(row.rawPoints,120);assert(row.scores.every(s=>s.points===null));
+ await action(env,owner,'refresh-scores',{roundId:round.id},async url=>url.includes('/journey/')?scoreFetch(url):Response.json({playerStats:[]}));row=(await state(env,owner)).lineups[0];assert.equal(row.rawPoints,120);assert(row.scores.every(s=>s.points===12&&s.stale===true));
  assert.throws(()=>normalizeScore({playerStats:[{numberJourney:2,pointsJourney:'bad'}]},'1',2));assert.equal(normalizeScore({playerStats:[{numberJourney:2,pointsJourney:-3,bonusVictory:0}]},'1',2).points,-3);
  }finally{db.close();}
 });
@@ -238,18 +240,81 @@ test('no-changes totals are exposed from J2 onward, for the same team, with pre-
   const now=Date.now();db.prepare('UPDATE rounds SET lock_at=?,ends_at=?,closed_at=? WHERE id=?').run(now-30000,now-20000,now-10000,round.id);
   const next=await action(env,owner,'round',{label:'J3',lockAt:now+3600000,endsAt:now+7200000});
   await importLineup(env,owner,next.id,async()=>Response.json([{...rawPlayers[0],idPlayer:99},...rawPlayers.slice(1)]));
-  const scores=Array.from({length:10},(_,i)=>({id:String(i?i+1:99),points:10,valuation:10,brokerDelta:100,source:'rincon'}));
-  scores[0].noChangesScores=[{id:'1',points:-5,valuation:-5,brokerDelta:-500,source:'rincon'}];
+  const scores=Array.from({length:10},(_,i)=>({id:String(i?i+1:99),points:10,valuation:10,brokerDelta:100,source:'rincon',journey:3,season:'2026/27'}));
+  scores[0].noChangesScores=[{id:'1',points:-5,valuation:-5,brokerDelta:-500,source:'rincon',journey:3,season:'2026/27'}];
   db.prepare('UPDATE snapshots SET scores_json=?,scores_at=?,raw_points=? WHERE round_id=?').run(JSON.stringify(scores),now,100,next.id);
-  assert.deepEqual((await state(env,owner,next.id)).lineups[0].noChanges,{points:85,brokerDelta:400});
+  assert.partialDeepStrictEqual((await state(env,owner,next.id)).lineups[0].noChanges,{points:85,brokerDelta:400});
   assert.equal((await state(env,friend,next.id)).lineups.length,0);
   assert.equal((await state(env,owner,round.id)).lineups[0].noChanges,null);
   db.prepare('UPDATE rounds SET label=? WHERE id=?').run('J2',next.id);
-  assert.deepEqual((await state(env,owner,next.id)).lineups[0].noChanges,{points:85,brokerDelta:400});
+  for(const s of [...scores,...scores[0].noChangesScores])s.journey=2;db.prepare('UPDATE snapshots SET scores_json=? WHERE round_id=?').run(JSON.stringify(scores),next.id);
+  assert.partialDeepStrictEqual((await state(env,owner,next.id)).lineups[0].noChanges,{points:85,brokerDelta:400});
   db.prepare('UPDATE rounds SET label=? WHERE id=?').run('J1',next.id);
   assert.equal((await state(env,owner,next.id)).lineups[0].noChanges,null);
   db.prepare('UPDATE rounds SET label=? WHERE id=?').run('J3',next.id);
   db.prepare('UPDATE snapshots SET team_id=? WHERE round_id=?').run('different-team',next.id);
   assert.equal((await state(env,owner,next.id)).lineups[0].noChanges,null);
+  db.prepare('UPDATE snapshots SET team_id=? WHERE round_id=?').run('12',next.id);
+  // A missing intermediate round must not silently compare to an older roster.
+  db.prepare('INSERT INTO rounds(id,league_id,label,lock_at,ends_at) SELECT ?,league_id,?,?,? FROM rounds WHERE id=?').run('missing-intermediate','J2',now-15000,now-11000,round.id);
+  assert.equal((await state(env,owner,next.id)).lineups[0].noChanges,null);
+ }finally{db.close();}
+});
+test('actual roster import preserves kept sources and caches sold results instead of clearing scores',async()=>{
+ const {env,db,round}=await setup();try{
+  await importLineup(env,owner,round.id,fixtureFetch,true);
+  const scores=rawPlayers.map(p=>({id:String(p.idPlayer),points:12,valuation:10,source:'acb',sourceResults:{acb:{id:String(p.idPlayer),points:12,valuation:10,source:'acb'},rincon:{id:String(p.idPlayer),points:10,valuation:10,source:'rincon',brokerDelta:100}}}));
+  db.prepare('UPDATE snapshots SET scores_json=?,scores_at=1,raw_points=120,manual_penalty=4').run(JSON.stringify(scores));
+  await importLineup(env,owner,round.id,async()=>Response.json([{...rawPlayers[0],idPlayer:99},...rawPlayers.slice(1)]));
+  const row=db.prepare('SELECT * FROM snapshots WHERE round_id=?').get(round.id),saved=JSON.parse(row.scores_json);
+  assert.equal(saved.length,10);assert.equal(saved[0].id,'99');assert.equal(saved[0].points,null);
+  assert.equal(saved[1].sourceResults.acb.points,12);assert.equal(saved[1].sourceResults.rincon.brokerDelta,100);
+  assert.equal(saved[0].noChangesScores[0].id,'1');assert.equal(saved[0].noChangesScores[0].sourceResults.rincon.brokerDelta,100);
+  assert.equal(row.manual_penalty,4);assert.equal(row.raw_points,null);
+ }finally{db.close();}
+});
+
+test('stale partial points agree across API, live ranking and comparison; manual historical totals remain intact',async()=>{
+ const {env,db,round}=await setup();try{
+  await importLineup(env,owner,round.id,fixtureFetch,true);
+  const now=Date.now(),c={season:'2026/27',journey:2};
+  db.prepare('UPDATE rounds SET label=?,lock_at=?,rincon_journey_number=2,rincon_season=? WHERE id=?').run('J2',now-1000,c.season,round.id);
+  const roster=JSON.parse(db.prepare('SELECT players_json FROM snapshots WHERE round_id=?').get(round.id).players_json);
+  db.prepare('INSERT INTO rounds(id,league_id,label,lock_at,ends_at,closed_at) SELECT ?,league_id,?,?,?,? FROM rounds WHERE id=?').run('previous','J1',now-3000,now-2000,now-1500,round.id);
+  db.prepare('INSERT INTO snapshots(round_id,user_id,team_id,team_name,players_json,imported_at) VALUES(?,?,?,?,?,?)').run('previous',owner.userId,'12','Mi equipo',JSON.stringify(roster),1);
+  const scores=roster.map((p,i)=>({id:p.id,points:i?5:17,valuation:i?5:17,source:'rincon',observedAt:100,...c}));
+  scores[0]=mergeScore(scores[0],{id:roster[0].id,points:null,valuation:null,source:'rincon',observedAt:200,...c},c);
+  db.prepare('UPDATE snapshots SET raw_points=62,scores_json=?,scores_at=200,manual_penalty=4 WHERE round_id=?').run(JSON.stringify(scores),round.id);
+  const stored=db.prepare('SELECT * FROM snapshots WHERE round_id=?').get(round.id);
+  let result=await state(env,owner,round.id),team=result.lineups[0];
+  assert.equal(team.rawPoints,62);assert.equal(team.netPoints,41);assert.equal(livePoints(team),45);assert.equal(liveNet(team),41);assert.equal(livePointsStatus(team).count,9);
+  assert.equal(team.noChanges.points,45);assert.equal(team.noChanges.pointStatus.count,9);assert.equal(team.scores[0].points,17);
+  assert.deepEqual(db.prepare('SELECT * FROM snapshots WHERE round_id=?').get(round.id),stored);
+  await action(env,owner,'close-round',{roundId:round.id});
+  result=await state(env,owner,round.id);assert.equal(result.overall.find(r=>r.userId===owner.userId).counted,0);
+  // Saving a total is the existing explicit admin override, not a recomputation.
+  await action(env,owner,'score',{roundId:round.id,userId:owner.userId,points:203});
+  result=await state(env,owner,round.id);team=result.lineups[0];
+  assert.equal(team.scoresAt,null);assert.equal(livePoints(team),203);assert.equal(liveNet(team),199);assert.equal(team.netPoints,199);
+  assert.equal(team.noChanges.points,45);assert.equal(team.penalty,4);
+  const overall=result.overall.find(r=>r.userId===owner.userId);assert.equal(overall.rawPoints,203);assert.equal(overall.netPoints,199);assert.equal(overall.counted,1);
+  const after=db.prepare('SELECT * FROM snapshots WHERE round_id=?').get(round.id);assert.equal(after.scores_json,stored.scores_json);assert.equal(after.history_json,stored.history_json);
+ }finally{db.close();}
+});
+
+test('closed final and legacy ACB snapshots preserve their stored totals and only count current-roster players',async()=>{
+ const {env,db,round}=await setup();try{
+  await importLineup(env,owner,round.id,fixtureFetch,true);const now=Date.now();
+  db.prepare('UPDATE rounds SET label=?,lock_at=?,closed_at=1,rincon_journey_number=2,rincon_season=? WHERE id=?').run('J2',now-1000,'2026/27',round.id);
+  const roster=JSON.parse(db.prepare('SELECT players_json FROM snapshots WHERE round_id=?').get(round.id).players_json);
+  const legacy=roster.map(p=>({id:p.id,points:5,valuation:5}));
+  db.prepare('UPDATE snapshots SET scores_json=?,scores_at=200,raw_points=50,manual_penalty=-4 WHERE round_id=?').run(JSON.stringify(legacy),round.id);
+  let result=await state(env,owner,round.id);assert.equal(livePoints(result.lineups[0]),50);assert.equal(result.lineups[0].netPoints,54);assert.equal(result.overall.find(r=>r.userId===owner.userId).counted,1);
+  const finals=roster.map(p=>({id:p.id,source:'rincon',points:5,valuation:5,pointsFinal:true,journey:2,season:'2026/27'}));
+  db.prepare('UPDATE snapshots SET scores_json=? WHERE round_id=?').run(JSON.stringify(finals),round.id);
+  const before=db.prepare('SELECT * FROM snapshots WHERE round_id=?').get(round.id);result=await state(env,owner,round.id);
+  assert.equal(livePointsStatus(result.lineups[0]).state,'final');assert.equal(result.overall.find(r=>r.userId===owner.userId).rawPoints,50);assert.deepEqual(db.prepare('SELECT * FROM snapshots WHERE round_id=?').get(round.id),before);
+  finals[0].journey=1;db.prepare('UPDATE snapshots SET scores_json=? WHERE round_id=?').run(JSON.stringify(finals),round.id);
+  result=await state(env,owner,round.id);assert.equal(livePoints(result.lineups[0]),45);assert.equal(livePointsStatus(result.lineups[0]).count,9);assert.equal(result.overall.find(r=>r.userId===owner.userId).counted,0);
  }finally{db.close();}
 });

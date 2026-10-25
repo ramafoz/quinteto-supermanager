@@ -4,11 +4,8 @@ import {readRinconPage,type RinconScore} from './rincon.ts';
 import type {Fetcher} from './acb.ts';
 const fail=()=>new AppError(502,'RINCON_HISTORY','Non se puideron verificar os resultados finais de Rincón. Conservamos os datos anteriores.');
 const plain=(s:string)=>s.replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim();
-// JOV–AND was postponed outside SuperManager J2 in 2026/27.
-// Keep the exclusion even when ACB history later includes the played match.
-export function excludedFromSuperManager(journey:number,club:string|undefined){
- return CATALOG_SEASON==='2026/27'&&journey===2&&(club==='JOV'||club==='AND');
-}
+import {excludedFromSuperManager} from '../lib/supermanager-rules.ts';
+export {excludedFromSuperManager} from '../lib/supermanager-rules.ts';
 export function verifyFinishedJourney(html:string,journey:number){
  if(!html.includes(`<h1>Jornada ${journey} · ${CATALOG_SEASON}</h1>`))throw fail();
  const matches=[...html.matchAll(/aria-label="Acta del partido ([A-Z]{3}) (\d+)-(\d+) ([A-Z]{3})"/g)];
@@ -40,7 +37,7 @@ export function parsePlayerHistory(html:string,slug:string,journey:number,matchF
  if(points < -100||points>200||Math.abs(delta)>10000000)throw fail();
  return {points,valuation,delta,didNotPlay:value(4)===0&&points===0&&delta===0};
 }
-export async function readRinconHistory(ids:string[],pairs:CatalogPair[],journey:number,fetcher:Fetcher,at=Date.now()){
+export async function readRinconHistory(ids:string[],pairs:CatalogPair[],journey:number,fetcher:Fetcher,at=Date.now(),partial=false){
  const finishedClubs=verifyFinishedJourney(await readRinconPage(`https://www.rincondelmanager.com/smgr/jornada/${journey}`,fetcher),journey);
  const result:RinconScore[]=[];
  // Four concurrent reads; each shared player is fetched once per league update.
@@ -48,12 +45,12 @@ export async function readRinconHistory(ids:string[],pairs:CatalogPair[],journey
   result.push(...await Promise.all(ids.slice(start,start+4).map(async id=>{
    const pair=pairs.find(p=>p.acb.ref===id);if(!pair||!/^[a-z0-9-]+$/.test(pair.rincon.ref))throw fail();
    const url=`https://www.rincondelmanager.com/smgr/jugador/${pair.rincon.ref}`;
-   if(excludedFromSuperManager(journey,pair.rincon.club))return {id,points:0,valuation:0,broker:null,brokerOpening:null,brokerDelta:0,brokerKind:'final',didNotPlay:true,playing:false,source:'rincon',sourceUrl:url,season:CATALOG_SEASON,journey,observedAt:at} satisfies RinconScore;
+   if(excludedFromSuperManager(journey,pair.rincon.club))return {id,points:0,pointsFinal:true,valuation:0,broker:null,brokerOpening:null,brokerDelta:0,brokerKind:'final',didNotPlay:true,playing:false,source:'rincon',sourceUrl:url,season:CATALOG_SEASON,journey,observedAt:at,matchState:'postponed',participation:'excluded',readStatus:'ok',zeroEvidence:'supermanager-exclusion'} satisfies RinconScore;
    const matchFinished=finishedClubs.size===18||finishedClubs.has(pair.rincon.club??'');
-   let row:ReturnType<typeof parsePlayerHistory>;
+   let row:ReturnType<typeof parsePlayerHistory>;let failed=false;
    try{row=parsePlayerHistory(await readRinconPage(url,fetcher),pair.rincon.ref,journey,matchFinished);}
-   catch{throw new AppError(502,'RINCON_HISTORY',`Non se puideron verificar os resultados de ${pair.rincon.name} na xornada ${journey}. Conservamos os datos anteriores.`);}
-   return {id,points:row.points,valuation:row.valuation,broker:null,brokerOpening:null,brokerDelta:row.delta,brokerKind:row.delta===null?null:'final',didNotPlay:row.didNotPlay,playing:false,source:'rincon',sourceUrl:url,season:CATALOG_SEASON,journey,observedAt:at} satisfies RinconScore;
+   catch{if(!partial)throw new AppError(502,'RINCON_HISTORY',`Non se puideron verificar os resultados de ${pair.rincon.name} na xornada ${journey}. Conservamos os datos anteriores.`);failed=true;row={points:null,valuation:null,delta:null,didNotPlay:false};}
+   return {id,points:row.points,pointsFinal:matchFinished&&row.points!==null,valuation:row.valuation,broker:null,brokerOpening:null,brokerDelta:row.delta,brokerKind:row.delta===null?null:'final',didNotPlay:row.didNotPlay,playing:false,source:'rincon',sourceUrl:url,season:CATALOG_SEASON,journey,observedAt:at,matchState:matchFinished?'final':'unknown',participation:row.didNotPlay?'did-not-play':row.points!==null?'played':'unknown',readStatus:failed?'failed':row.points===null?'missing':'ok',zeroEvidence:row.didNotPlay?'historical-row-and-final':undefined} satisfies RinconScore;
   })));
  }
  return result;
